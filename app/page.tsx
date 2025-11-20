@@ -998,7 +998,7 @@ export default function Dashboard() {
               <button
                 onClick={() => {
                   setSearchQuery('')
-                  setDisplayedCount(20)
+                  setCurrentPage(1)
                 }}
                 className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-semibold"
               >
