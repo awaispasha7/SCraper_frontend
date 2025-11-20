@@ -320,7 +320,6 @@ function OwnerInfoContent() {
                   </div>
                 </div>
               </div>
-            )}
 
             {/* Additional Info */}
             {(!ownerInfo?.ownerName || ownerInfo.ownerName === 'null' || ownerInfo.ownerName === 'None') &&
