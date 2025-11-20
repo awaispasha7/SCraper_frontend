@@ -816,36 +816,36 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 w-full overflow-x-hidden">
-      {/* Header - Darker Blue Professional Design */}
-      <header className="bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 shadow-xl border-b-4 border-teal-500">
+    <div className="min-h-screen bg-gray-50 w-full overflow-x-hidden">
+      {/* Header - Light Professional Design */}
+      <header className="bg-white shadow-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div className="flex items-center gap-4">
-              <div className="bg-white rounded-2xl p-3 shadow-lg border border-blue-300">
+              <div className="bg-gray-50 rounded-lg p-3 shadow-sm border border-gray-200">
                 <img src="/fsbo-default.2328aad2.svg" alt="ForSaleByOwner Logo" className="h-12 w-auto" />
               </div>
               <div>
-                <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-2 tracking-tight">
+                <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-2 tracking-tight">
                   ForSaleByOwner
-                  <span className="block text-2xl md:text-3xl text-teal-300 font-semibold mt-1">Dashboard</span>
+                  <span className="block text-2xl md:text-3xl text-gray-600 font-medium mt-1">Dashboard</span>
                 </h1>
-                <p className="text-blue-100 text-lg font-medium">
+                <p className="text-gray-600 text-lg">
                   Chicago, Illinois Property Listings
                 </p>
               </div>
             </div>
             <div className="flex items-center gap-3">
               {dataChanged && (
-                <div className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white px-5 py-2.5 rounded-xl shadow-lg font-semibold flex items-center gap-2 animate-pulse">
-                  <span className="text-lg">✓</span>
+                <div className="bg-green-100 text-green-700 border border-green-300 px-5 py-2.5 rounded-lg shadow-sm font-medium flex items-center gap-2">
+                  <span className="text-sm">✓</span>
                   Data Updated!
                 </div>
               )}
               <button
                 onClick={handleRefresh}
                 disabled={loading || isSyncing}
-                className="bg-teal-600 text-white px-6 py-3 rounded-xl hover:bg-teal-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 font-semibold shadow-lg hover:shadow-xl"
+                className="bg-blue-50 text-blue-700 border border-blue-300 px-6 py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 font-medium shadow-sm hover:shadow-md"
               >
                 <span className={`text-lg ${isSyncing ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
                 {isSyncing ? 'Syncing...' : loading ? 'Loading...' : 'Refresh'}
@@ -858,19 +858,19 @@ export default function Dashboard() {
       {/* Sync Progress Banner */}
       {isSyncing && syncProgress && (
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 -mt-2">
-          <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg p-4 border border-blue-400/30 animate-pulse">
+          <div className="bg-blue-50 rounded-lg shadow-sm p-4 border border-blue-200">
             <div className="flex items-center gap-3">
               <div className="animate-spin text-2xl">🔍</div>
               <div className="flex-1">
-                <p className="text-white font-semibold text-lg">{syncProgress}</p>
-                <p className="text-blue-100 text-sm mt-1">
+                <p className="text-blue-900 font-semibold text-lg">{syncProgress}</p>
+                <p className="text-blue-700 text-sm mt-1">
                   New leads are being added to the list below in real-time...
                 </p>
               </div>
               {data && data.listings && data.listings.length > 0 && (
-                <div className="bg-white/20 backdrop-blur-sm rounded-lg px-4 py-2 border border-white/30">
-                  <p className="text-white font-bold text-xl">{data.listings.length}</p>
-                  <p className="text-blue-100 text-xs">leads found</p>
+                <div className="bg-white rounded-lg px-4 py-2 border border-blue-200">
+                  <p className="text-blue-900 font-bold text-xl">{data.listings.length}</p>
+                  <p className="text-blue-700 text-xs">leads found</p>
                 </div>
               )}
             </div>
@@ -897,7 +897,7 @@ export default function Dashboard() {
                     setDisplayedCount(20)
                   }}
                   placeholder="Search by owner name or mailing address..."
-                  className="w-full pl-12 pr-4 py-3.5 rounded-xl border-2 border-gray-200 focus:border-teal-500 focus:ring-4 focus:ring-teal-100 outline-none transition-all text-gray-800 placeholder-gray-400 bg-gray-50 focus:bg-white font-medium"
+                  className="w-full pl-12 pr-4 py-3.5 rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-gray-800 placeholder-gray-400 bg-white focus:bg-white font-medium"
                 />
               </div>
             </div>
@@ -907,7 +907,7 @@ export default function Dashboard() {
                   setSearchQuery('')
                   setDisplayedCount(20)
                 }}
-                className="px-6 py-3.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl font-semibold transition-all duration-200 whitespace-nowrap text-sm mt-6 md:mt-0 shadow-sm hover:shadow-md"
+                className="px-6 py-3.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-sm mt-6 md:mt-0 shadow-sm hover:shadow-md"
               >
                 Clear Search
               </button>
@@ -930,23 +930,23 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
           {/* Available Listings Card */}
-          <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-indigo-700 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 transition-all duration-300 border-2 border-blue-400/30 hover:border-blue-300/50">
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
             <div className="mb-4">
-              <div className="text-5xl font-extrabold">
+              <div className="text-5xl font-bold text-gray-900">
                 {searchQuery ? filteredListings.length : (data?.total_listings || 0)}
               </div>
             </div>
-            <div className="text-blue-100 text-sm font-bold uppercase tracking-wide">
+            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide">
               {searchQuery ? 'Filtered Listings' : 'Available Listings'}
             </div>
-            <div className="text-blue-200 text-xs mt-2 font-medium">
+            <div className="text-gray-500 text-xs mt-2 font-medium">
               {searchQuery ? 'Matching search criteria' : 'Active properties'}
             </div>
           </div>
 
           {/* Last Updated Card */}
-          <div className="bg-gradient-to-br from-purple-600 via-indigo-700 to-purple-700 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 transition-all duration-300 border-2 border-purple-400/30 hover:border-purple-300/50">
-            <div className="text-purple-100 text-sm font-bold uppercase tracking-wide mb-2">Last Updated</div>
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
             <div className="text-xl font-bold">
               {(() => {
                 const displayTime = lastRefreshTime || (data?.scrape_timestamp ? new Date(data.scrape_timestamp) : new Date())
@@ -1012,7 +1012,7 @@ export default function Dashboard() {
               className={`bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border ${isNewListing ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-200 hover:border-blue-300'} transform hover:-translate-y-1`}
             >
               {isNewListing && (
-                <div className="bg-gradient-to-r from-emerald-500 via-teal-500 to-green-500 text-white text-xs font-bold px-4 py-2 text-center shadow-md">
+                <div className="bg-green-600 text-white text-xs font-semibold px-4 py-2 text-center shadow-sm">
                   NEW LISTING
                 </div>
               )}
@@ -1029,7 +1029,7 @@ export default function Dashboard() {
                 
                 {/* Time of Post */}
                 {listing.time_of_post && listing.time_of_post !== 'null' && listing.time_of_post !== 'None' && (
-                  <div className="text-xs text-gray-600 mb-6 text-center bg-gradient-to-r from-slate-50 to-blue-50 rounded-lg py-2 px-3 font-medium border border-gray-100">
+                  <div className="text-xs text-gray-600 mb-6 text-center bg-gray-50 rounded-lg py-2 px-3 font-medium border border-gray-200">
                     Posted: {listing.time_of_post}
                   </div>
                 )}
@@ -1041,7 +1041,7 @@ export default function Dashboard() {
                       href={listing.listing_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 text-white text-center py-3.5 rounded-lg hover:from-blue-700 hover:via-indigo-700 hover:to-purple-700 transition-all duration-200 font-semibold shadow-md hover:shadow-lg transform hover:scale-[1.02] text-sm"
+                      className="block w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-3.5 rounded-lg hover:bg-blue-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-sm"
                     >
                       View Listing →
                     </a>
@@ -1069,7 +1069,7 @@ export default function Dashboard() {
                           window.location.href = `/owner-info?${params.toString()}`
                         }
                       }}
-                      className="w-full bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 text-white text-center py-3.5 rounded-lg hover:from-teal-700 hover:via-cyan-700 hover:to-blue-700 transition-all duration-200 flex items-center justify-center gap-2 font-semibold shadow-md hover:shadow-lg transform hover:scale-[1.02] text-sm"
+                      className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-3.5 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm"
                     >
                       Owner Information
                     </button>
@@ -1091,7 +1091,7 @@ export default function Dashboard() {
                 const newCount = Math.min(displayedCount + 20, filteredListings.length)
                 setDisplayedCount(newCount)
               }}
-              className="bg-gradient-to-r from-teal-600 via-cyan-600 to-blue-600 text-white px-10 py-4 rounded-xl hover:from-teal-700 hover:via-cyan-700 hover:to-blue-700 transition-all duration-200 flex items-center gap-3 text-lg font-bold shadow-xl hover:shadow-2xl transform hover:scale-105"
+              className="bg-blue-50 text-blue-700 border border-blue-300 px-10 py-4 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-3 text-lg font-medium shadow-sm hover:shadow-md"
             >
               <span className="text-2xl">📄</span>
               Load More Listings
@@ -1107,7 +1107,7 @@ export default function Dashboard() {
           <div className="flex justify-center mt-2 mb-6">
             <button
               onClick={() => setDisplayedCount(filteredListings.length)}
-              className="text-teal-600 hover:text-teal-700 font-semibold text-base underline decoration-2 underline-offset-4 transition-colors"
+              className="text-blue-600 hover:text-blue-700 font-medium text-base underline decoration-2 underline-offset-4 transition-colors"
             >
               Show All {filteredListings.length} {searchQuery ? 'Filtered' : ''} Listings
             </button>
@@ -1135,7 +1135,7 @@ export default function Dashboard() {
               return (
                 newCount > 0 && (
                   <div className="mt-4">
-                    <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl p-4 border border-green-200 max-w-xs mx-auto">
+                    <div className="bg-green-50 rounded-lg p-4 border border-green-200 max-w-xs mx-auto">
                       <p className="text-sm font-semibold text-green-700">
                         ✨ <span className="text-lg font-bold">{newCount}</span> new listings
                       </p>
@@ -1149,50 +1149,50 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Footer - Darker Blue Professional Design */}
-      <footer className="bg-gradient-to-r from-blue-500 via-blue-600 to-indigo-600 border-t-4 border-teal-500 mt-16 shadow-xl">
+      {/* Footer - Light Professional Design */}
+      <footer className="bg-white border-t border-gray-200 mt-16 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-8">
             {/* Brand Section */}
             <div className="text-center md:text-left">
               <div className="flex items-center justify-center md:justify-start gap-3 mb-4">
-                <div className="bg-white rounded-xl p-3 shadow-md border border-blue-400">
+                <div className="bg-gray-50 rounded-lg p-3 shadow-sm border border-gray-200">
                   <img src="/fsbo-default.2328aad2.svg" alt="ForSaleByOwner Logo" className="h-10 w-auto" />
                 </div>
                 <div>
-                  <h3 className="text-xl font-bold text-white">ForSaleByOwner</h3>
-                  <p className="text-blue-100 text-sm">Property Dashboard</p>
+                  <h3 className="text-xl font-bold text-gray-900">ForSaleByOwner</h3>
+                  <p className="text-gray-600 text-sm">Property Dashboard</p>
                 </div>
               </div>
-              <p className="text-blue-100 text-sm leading-relaxed">
+              <p className="text-gray-600 text-sm leading-relaxed">
                 Professional property management system for tracking and managing real estate listings in Chicago, Illinois.
               </p>
             </div>
 
             {/* Quick Links Section */}
             <div className="text-center md:text-left">
-              <h4 className="text-white font-bold text-lg mb-4">Quick Links</h4>
+              <h4 className="text-gray-900 font-bold text-lg mb-4">Quick Links</h4>
               <ul className="space-y-2">
                 <li>
-                  <a href="#" className="text-blue-100 hover:text-white transition-colors text-sm flex items-center justify-center md:justify-start gap-2">
+                  <a href="#" className="text-gray-600 hover:text-gray-900 transition-colors text-sm flex items-center justify-center md:justify-start gap-2">
                     <span>→</span>
                     <span>View All Listings</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-blue-100 hover:text-white transition-colors text-sm flex items-center justify-center md:justify-start gap-2">
+                  <a href="#" className="text-gray-600 hover:text-gray-900 transition-colors text-sm flex items-center justify-center md:justify-start gap-2">
                     <span>→</span>
                     <span>Property Search</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-blue-100 hover:text-white transition-colors text-sm flex items-center justify-center md:justify-start gap-2">
+                  <a href="#" className="text-gray-600 hover:text-gray-900 transition-colors text-sm flex items-center justify-center md:justify-start gap-2">
                     <span>→</span>
                     <span>Owner Information</span>
                   </a>
                 </li>
                 <li>
-                  <a href="#" className="text-blue-100 hover:text-white transition-colors text-sm flex items-center justify-center md:justify-start gap-2">
+                  <a href="#" className="text-gray-600 hover:text-gray-900 transition-colors text-sm flex items-center justify-center md:justify-start gap-2">
                     <span>→</span>
                     <span>Dashboard</span>
                   </a>
@@ -1202,17 +1202,17 @@ export default function Dashboard() {
 
             {/* Information Section */}
             <div className="text-center md:text-left">
-              <h4 className="text-white font-bold text-lg mb-4">Information</h4>
+              <h4 className="text-gray-900 font-bold text-lg mb-4">Information</h4>
               <ul className="space-y-2">
-                <li className="text-blue-100 text-sm flex items-center justify-center md:justify-start gap-2">
+                <li className="text-gray-600 text-sm flex items-center justify-center md:justify-start gap-2">
                   <span>📍</span>
                   <span>Chicago, Illinois</span>
                 </li>
-                <li className="text-blue-100 text-sm flex items-center justify-center md:justify-start gap-2">
+                <li className="text-gray-600 text-sm flex items-center justify-center md:justify-start gap-2">
                   <span>📊</span>
                   <span>Real-time Data Updates</span>
                 </li>
-                <li className="text-blue-100 text-sm flex items-center justify-center md:justify-start gap-2">
+                <li className="text-gray-600 text-sm flex items-center justify-center md:justify-start gap-2">
                   <span>✅</span>
                   <span>Active Monitoring</span>
                 </li>
@@ -1221,19 +1221,19 @@ export default function Dashboard() {
           </div>
 
           {/* Divider */}
-          <div className="border-t border-blue-400/50 my-8"></div>
+          <div className="border-t border-gray-200 my-8"></div>
 
           {/* Bottom Section */}
           <div className="flex flex-col md:flex-row justify-between items-center gap-4">
             <div className="text-center md:text-left">
-              <p className="text-blue-100 text-sm">
-                © {new Date().getFullYear()} <span className="font-semibold text-white">ForSaleByOwner Dashboard</span>
+              <p className="text-gray-600 text-sm">
+                © {new Date().getFullYear()} <span className="font-semibold text-gray-900">ForSaleByOwner Dashboard</span>
               </p>
-              <p className="text-blue-200 text-xs mt-1">Professional Property Management System</p>
+              <p className="text-gray-500 text-xs mt-1">Professional Property Management System</p>
             </div>
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-blue-100 text-sm">
-                <span className="text-emerald-300 animate-pulse">●</span>
+              <div className="flex items-center gap-2 text-gray-600 text-sm">
+                <span className="text-green-500 animate-pulse">●</span>
                 <span>System Active</span>
               </div>
             </div>
