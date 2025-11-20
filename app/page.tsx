@@ -913,7 +913,7 @@ export default function Dashboard() {
               <button
                 onClick={() => {
                   setSearchQuery('')
-                  setDisplayedCount(20)
+                  setCurrentPage(1)
                 }}
                 className="px-6 py-3.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-sm mt-6 md:mt-0 shadow-sm hover:shadow-md"
               >
