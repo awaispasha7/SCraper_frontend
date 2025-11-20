@@ -368,9 +368,9 @@ export default function Dashboard() {
         })
       }
       
-      // Reset displayed count if new data has different count
+      // Reset to first page if new data has different count
       if (data && result.listings.length !== data.listings.length) {
-        setDisplayedCount(20) // Reset to show first 20
+        setCurrentPage(1) // Reset to first page
       }
     } catch (err: any) {
       setError(err.message)
