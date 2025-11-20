@@ -51,6 +51,13 @@ export default function Dashboard() {
     dataRef.current = data
   }, [data])
   
+  // Scroll to top when page changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    }
+  }, [currentPage])
+  
   // Prevent automatic scroll to top on page load
   useEffect(() => {
     if (typeof window !== 'undefined') {
