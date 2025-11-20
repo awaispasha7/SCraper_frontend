@@ -3,6 +3,17 @@ import { supabase } from '@/lib/supabase'
 
 export async function GET() {
   try {
+    // Check if Supabase client is initialized
+    if (!supabase) {
+      return NextResponse.json(
+        { 
+          error: 'Database not configured',
+          details: 'Supabase client not initialized. Please set SUPABASE_URL and SUPABASE_ANON_KEY in .env'
+        },
+        { status: 500 }
+      )
+    }
+
     // Fetch removed listings from Supabase
     const { data: listings, error } = await supabase
       .from('listings')
