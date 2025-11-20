@@ -710,16 +710,16 @@ export default function Dashboard() {
 
   if (loading && !isSyncing) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="relative">
-            <div className="animate-spin rounded-full h-20 w-20 border-4 border-blue-200 border-t-blue-600 mx-auto mb-6"></div>
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-blue-600 mx-auto mb-6"></div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-12 w-12 bg-blue-600 rounded-full animate-pulse"></div>
+              <div className="h-12 w-12 bg-blue-100 rounded-full animate-pulse"></div>
             </div>
           </div>
-          <p className="text-white text-xl font-semibold">Loading listings...</p>
-          <p className="text-blue-200 text-sm mt-2">Please wait while we fetch the latest data</p>
+          <p className="text-gray-900 text-xl font-semibold">Loading listings...</p>
+          <p className="text-gray-600 text-sm mt-2">Please wait while we fetch the latest data</p>
         </div>
       </div>
     )
@@ -728,14 +728,14 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-md text-center border border-gray-100">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-lg shadow-md p-8 max-w-md text-center border border-gray-200">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Data</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Data</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
             onClick={fetchListings}
-            className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold"
+            className="bg-blue-50 text-blue-700 border border-blue-300 px-8 py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
           >
             Retry
           </button>
@@ -747,21 +747,21 @@ export default function Dashboard() {
   // Don't show empty state if we're syncing - show the main view with progress banner instead
   if ((!data || !data.listings || data.listings.length === 0) && !isSyncing) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 w-full overflow-x-hidden">
+      <div className="min-h-screen bg-gray-50 w-full overflow-x-hidden">
         {/* Header */}
-        <header className="bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 shadow-2xl border-b-4 border-blue-500">
+        <header className="bg-white shadow-md border-b border-gray-200">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
               <div className="flex items-center gap-4">
-                <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-4 shadow-lg">
+                <div className="bg-gray-50 rounded-lg p-4 shadow-sm border border-gray-200">
                   <span className="text-4xl">🏠</span>
                 </div>
                 <div>
-                  <h1 className="text-4xl md:text-5xl font-extrabold text-white mb-2 tracking-tight">
+                  <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-2 tracking-tight">
                     ForSaleByOwner
-                    <span className="block text-2xl md:text-3xl text-blue-200 font-semibold mt-1">Dashboard</span>
+                    <span className="block text-2xl md:text-3xl text-gray-600 font-medium mt-1">Dashboard</span>
                   </h1>
-                  <p className="text-blue-100 text-lg font-medium flex items-center gap-2">
+                  <p className="text-gray-600 text-lg flex items-center gap-2">
                     <span className="text-xl">📍</span>
                     Chicago, Illinois Property Listings
                   </p>
@@ -770,7 +770,7 @@ export default function Dashboard() {
               <button
                 onClick={handleRefresh}
                 disabled={loading || isSyncing}
-                className="bg-white/20 backdrop-blur-sm text-white px-6 py-3 rounded-xl hover:bg-white/30 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 font-semibold shadow-lg hover:shadow-xl border border-white/30 hover:border-white/50"
+                className="bg-blue-50 text-blue-700 border border-blue-300 px-6 py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 font-medium shadow-sm hover:shadow-md"
               >
                 <span className={`text-lg ${isSyncing ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
                 {isSyncing ? 'Syncing...' : loading ? 'Loading...' : 'Sync Data'}
@@ -781,9 +781,9 @@ export default function Dashboard() {
 
         {/* No Listings Message */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-          <div className="bg-white rounded-2xl shadow-2xl p-12 max-w-2xl mx-auto text-center border border-gray-100">
+            <div className="bg-white rounded-lg shadow-md p-12 max-w-2xl mx-auto text-center border border-gray-200">
             <div className="text-gray-400 text-8xl mb-6">📭</div>
-            <h2 className="text-3xl font-bold text-gray-800 mb-4">No Listings Available</h2>
+            <h2 className="text-3xl font-bold text-gray-900 mb-4">No Listings Available</h2>
             <p className="text-gray-600 text-lg mb-8">
               The database is currently empty. Click the button below to sync data from the website.
             </p>
@@ -791,7 +791,7 @@ export default function Dashboard() {
               <button
                 onClick={handleRefresh}
                 disabled={loading || isSyncing}
-                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 mx-auto"
+                className="bg-blue-50 text-blue-700 border border-blue-300 px-8 py-4 rounded-lg hover:bg-blue-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 mx-auto"
               >
                 {isSyncing || loading ? (
                   <>
@@ -954,18 +954,18 @@ export default function Dashboard() {
               })()}
             </div>
             {lastRefreshTime && data?.scrape_timestamp && (
-              <div className="text-purple-200 text-xs mt-2 font-medium">
+              <div className="text-gray-500 text-xs mt-2 font-medium">
                 Data from: {formatDate(data.scrape_timestamp)}
               </div>
             )}
           </div>
 
           {/* Status Card */}
-          <div className="bg-gradient-to-br from-teal-600 via-cyan-700 to-teal-700 rounded-2xl shadow-2xl p-6 text-white transform hover:scale-105 transition-all duration-300 border-2 border-teal-400/30 hover:border-teal-300/50">
-            <div className="text-teal-100 text-sm font-bold uppercase tracking-wide mb-2">Status</div>
-            <div className="text-xl font-bold">Active</div>
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Status</div>
+            <div className="text-xl font-bold text-gray-900">Active</div>
             {lastFetchTime && (
-              <div className="text-teal-200 text-xs mt-2 font-medium">
+              <div className="text-gray-500 text-xs mt-2 font-medium">
                 Last checked: {lastFetchTime.toLocaleTimeString()}
               </div>
             )}

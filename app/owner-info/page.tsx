@@ -107,16 +107,16 @@ function OwnerInfoContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center w-full overflow-x-hidden">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center w-full overflow-x-hidden">
         <div className="text-center">
           <div className="relative">
-            <div className="animate-spin rounded-full h-20 w-20 border-4 border-blue-200 border-t-blue-600 mx-auto mb-6"></div>
+            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-blue-600 mx-auto mb-6"></div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-12 w-12 bg-blue-600 rounded-full animate-pulse"></div>
+              <div className="h-12 w-12 bg-blue-100 rounded-full animate-pulse"></div>
             </div>
           </div>
-          <p className="text-white text-xl font-semibold">Loading owner information...</p>
-          <p className="text-blue-200 text-sm mt-2">Please wait while we fetch the data</p>
+          <p className="text-gray-900 text-xl font-semibold">Loading owner information...</p>
+          <p className="text-gray-600 text-sm mt-2">Please wait while we fetch the data</p>
         </div>
       </div>
     )
@@ -124,11 +124,11 @@ function OwnerInfoContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 flex items-center justify-center p-4 w-full overflow-x-hidden">
-        <div className="bg-white rounded-2xl shadow-2xl p-8 max-w-lg text-center border border-gray-100">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4 w-full overflow-x-hidden">
+        <div className="bg-white rounded-lg shadow-md p-8 max-w-lg text-center border border-gray-200">
           <div className="text-red-500 text-6xl mb-4">⚠️</div>
-          <h2 className="text-2xl font-bold text-gray-800 mb-2">Error Loading Owner Information</h2>
-          <div className="text-gray-600 mb-6 text-left bg-gray-50 p-4 rounded-xl border border-gray-200">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Owner Information</h2>
+          <div className="text-gray-600 mb-6 text-left bg-gray-50 p-4 rounded-lg border border-gray-200">
             <p className="whitespace-pre-line">{error}</p>
             {address && (
               <div className="mt-3 pt-3 border-t border-gray-300">
@@ -141,7 +141,7 @@ function OwnerInfoContent() {
           <div className="flex gap-3 justify-center">
             <button
               onClick={fetchOwnerInfo}
-              className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold"
+              className="bg-blue-50 text-blue-700 border border-blue-300 px-8 py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
             >
               Retry
             </button>
@@ -154,7 +154,7 @@ function OwnerInfoContent() {
                   window.history.back()
                 }
               }}
-              className="bg-gradient-to-r from-gray-600 to-gray-700 text-white px-8 py-3 rounded-xl hover:from-gray-700 hover:to-gray-800 transition-all duration-200 shadow-lg hover:shadow-xl font-semibold"
+              className="bg-gray-50 text-gray-700 border border-gray-300 px-8 py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
             >
               Go Back
             </button>
