@@ -31,7 +31,8 @@ export default function Dashboard() {
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null)
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null) // Track when scraper was last run
   const [dataChanged, setDataChanged] = useState(false)
-  const [displayedCount, setDisplayedCount] = useState(20) // Initially show 20 listings
+  const [currentPage, setCurrentPage] = useState(1) // Current page number
+  const listingsPerPage = 20 // Listings per page
   const [syncProgress, setSyncProgress] = useState<string>('') // Progress message during sync
   const [isSyncing, setIsSyncing] = useState(false) // Track if sync is in progress
   const [searchQuery, setSearchQuery] = useState('') // Search query for filtering listings
@@ -894,7 +895,7 @@ export default function Dashboard() {
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value)
-                    setDisplayedCount(20)
+                    setCurrentPage(1) // Reset to first page on search
                   }}
                   placeholder="Search by owner name or mailing address..."
                   className="w-full pl-12 pr-4 py-3.5 rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-gray-800 placeholder-gray-400 bg-white focus:bg-white font-medium"
@@ -1000,7 +1001,14 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-            {filteredListings.slice(0, displayedCount).map((listing, index) => {
+            {(() => {
+              // Calculate pagination
+              const totalPages = Math.ceil(filteredListings.length / listingsPerPage)
+              const startIndex = (currentPage - 1) * listingsPerPage
+              const endIndex = startIndex + listingsPerPage
+              const currentListings = filteredListings.slice(startIndex, endIndex)
+              
+              return currentListings.map((listing, index) => {
             // Check if listing is new (not in stored previous URLs)
             const storedUrls = typeof window !== 'undefined' 
               ? JSON.parse(localStorage.getItem('previousListingUrls') || '[]')
@@ -1078,51 +1086,113 @@ export default function Dashboard() {
               </div>
             </div>
             )
-          })}
+          })})()}
         </div>
 
         )}
         
-        {/* Load More Button */}
-        {filteredListings.length > displayedCount && (
-          <div className="flex justify-center mt-8 mb-4">
-            <button
-              onClick={() => {
-                const newCount = Math.min(displayedCount + 20, filteredListings.length)
-                setDisplayedCount(newCount)
-              }}
-              className="bg-blue-50 text-blue-700 border border-blue-300 px-10 py-4 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-3 text-lg font-medium shadow-sm hover:shadow-md"
-            >
-              <span className="text-2xl">📄</span>
-              Load More Listings
-              <span className="text-sm opacity-90 font-normal bg-white/20 px-3 py-1 rounded-lg">
-                {filteredListings.length - displayedCount} more available
-              </span>
-            </button>
-          </div>
-        )}
-
-        {/* Show All Button (if not all shown) */}
-        {filteredListings.length > 0 && displayedCount < filteredListings.length && (
-          <div className="flex justify-center mt-2 mb-6">
-            <button
-              onClick={() => setDisplayedCount(filteredListings.length)}
-              className="text-blue-600 hover:text-blue-700 font-medium text-base underline decoration-2 underline-offset-4 transition-colors"
-            >
-              Show All {filteredListings.length} {searchQuery ? 'Filtered' : ''} Listings
-            </button>
-          </div>
-        )}
+        {/* Pagination */}
+        {(() => {
+          const totalPages = Math.ceil(filteredListings.length / listingsPerPage)
+          if (totalPages <= 1) return null
+          
+          // Calculate page numbers to show
+          const maxPagesToShow = 7
+          let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2))
+          let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1)
+          if (endPage - startPage < maxPagesToShow - 1) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1)
+          }
+          
+          const pageNumbers = []
+          for (let i = startPage; i <= endPage; i++) {
+            pageNumbers.push(i)
+          }
+          
+          return (
+            <div className="flex justify-center items-center gap-2 mt-8 mb-6">
+              {/* Previous Button */}
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md"
+              >
+                ← Prev
+              </button>
+              
+              {/* First Page */}
+              {startPage > 1 && (
+                <>
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+                  >
+                    1
+                  </button>
+                  {startPage > 2 && <span className="text-gray-400 px-2">...</span>}
+                </>
+              )}
+              
+              {/* Page Numbers */}
+              {pageNumbers.map(pageNum => (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-sm ${
+                    currentPage === pageNum
+                      ? 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+              
+              {/* Last Page */}
+              {endPage < totalPages && (
+                <>
+                  {endPage < totalPages - 1 && <span className="text-gray-400 px-2">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+                  >
+                    {totalPages}
+                  </button>
+                </>
+              )}
+              
+              {/* Next Button */}
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md"
+              >
+                Next →
+              </button>
+            </div>
+          )
+        })()}
 
         {/* Display Info */}
         <div className="text-center mt-8 mb-6">
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 max-w-2xl mx-auto">
             <p className="text-xl font-bold text-gray-800 mb-4">
-              Showing <span className="text-blue-600 text-2xl">{Math.min(displayedCount, filteredListings.length)}</span> of{' '}
+              Showing <span className="text-blue-600 text-2xl">
+                {(() => {
+                  const startIndex = (currentPage - 1) * listingsPerPage
+                  const endIndex = Math.min(startIndex + listingsPerPage, filteredListings.length)
+                  return startIndex + 1 === endIndex ? endIndex : `${startIndex + 1}-${endIndex}`
+                })()}
+              </span> of{' '}
               <span className="text-blue-600 text-2xl">{filteredListings.length}</span> {searchQuery ? 'filtered' : ''} listings
               {searchQuery && data?.listings && (
                 <span className="text-gray-500 text-base font-normal ml-2">
                   (out of {data.listings.length} total)
+                </span>
+              )}
+              {filteredListings.length > listingsPerPage && (
+                <span className="text-gray-500 text-base font-normal ml-2">
+                  (Page {currentPage} of {Math.ceil(filteredListings.length / listingsPerPage)})
                 </span>
               )}
             </p>
