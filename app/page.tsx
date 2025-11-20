@@ -646,7 +646,7 @@ export default function Dashboard() {
       
       // Search in owner name (handle null, undefined, 'null', 'None', empty string)
       // Use STRICT matching for owner names to avoid false positives
-      const ownerNameRaw = listing.owner_name || listing.ownerName || (listing as any).owner_name
+      const ownerNameRaw = listing.owner_name
       if (ownerNameRaw) {
         const ownerNameStr = String(ownerNameRaw).trim()
         if (ownerNameStr && ownerNameStr !== 'null' && ownerNameStr !== 'None' && ownerNameStr !== '') {
