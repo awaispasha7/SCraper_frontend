@@ -685,8 +685,7 @@ export default function Dashboard() {
       }
       
       // Search in mailing address
-      // Check multiple ways mailing_address might be stored
-      const mailingAddressRaw = listing.mailing_address || listing.mailingAddress || (listing as any).mailing_address
+      const mailingAddressRaw = listing.mailing_address
       if (mailingAddressRaw) {
         const mailingAddressStr = String(mailingAddressRaw).trim()
         if (mailingAddressStr && mailingAddressStr !== 'null' && mailingAddressStr !== 'None' && mailingAddressStr !== '') {
