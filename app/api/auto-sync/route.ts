@@ -7,6 +7,43 @@ import { syncListingsWithSupabase } from '@/lib/supabase-sync'
 export async function POST() {
   try {
     console.log('🔄 Manual sync triggered via API')
+    
+    // Check if backend URL is configured
+    const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL
+    
+    if (backendUrl) {
+      // Use backend API if configured
+      console.log('🌐 Using backend API:', backendUrl)
+      console.log('📋 Process: Trigger Backend Scraper → Backend stores in Database')
+      
+      try {
+        const response = await fetch(`${backendUrl}/api/trigger`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Backend API returned ${response.status}`)
+        }
+        
+        const result = await response.json()
+        console.log('✅ Backend scraper triggered:', result)
+        
+        return NextResponse.json({
+          success: true,
+          message: 'Backend scraper triggered successfully',
+          backendResponse: result,
+          timestamp: new Date().toISOString()
+        })
+      } catch (backendError: any) {
+        console.warn('⚠️ Backend API failed, falling back to local scraper:', backendError.message)
+        // Fall through to local scraper
+      }
+    }
+    
+    // Fallback to local scraper if backend URL not configured or backend fails
     console.log('📋 Process: Scrape → Store in Database (Real-time)')
     console.log('💡 Listings will be stored in Supabase as they are scraped')
     
