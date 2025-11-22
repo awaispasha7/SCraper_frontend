@@ -28,17 +28,17 @@ export async function GET(request: NextRequest) {
     })
 
     // Get current session
-    const { data: { user, session }, error } = await supabase.auth.getUser()
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-    if (error || !user || !session) {
+    if (sessionError || !session || !session.user) {
       return NextResponse.json({ authenticated: false })
     }
 
     return NextResponse.json({
       authenticated: true,
       user: {
-        id: user.id,
-        email: user.email,
+        id: session.user.id,
+        email: session.user.email,
       },
     })
   } catch (error) {
