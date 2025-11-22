@@ -47,42 +47,47 @@ export default function Dashboard() {
     return new Set()
   })
   
-  // Check authentication on mount
+  // Check authentication on mount using Supabase Auth
   useEffect(() => {
+    let mounted = true
+    
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check', {
-          credentials: 'include', // Important: Include cookies
-        })
-        if (response.ok) {
-          const data = await response.json()
-          if (data.authenticated) {
-            setIsAuthenticated(true)
-          } else {
-            router.push('/login')
-            return
-          }
-        } else {
-          router.push('/login')
+        const { createClient } = await import('@/lib/supabase-client')
+        const supabase = createClient()
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (!mounted) return
+        
+        if (error || !session) {
+          router.replace('/login')
           return
         }
+        
+        setIsAuthenticated(true)
       } catch (err) {
-        router.push('/login')
-        return
+        if (!mounted) return
+        router.replace('/login')
       } finally {
-        setCheckingAuth(false)
+        if (mounted) {
+          setCheckingAuth(false)
+        }
       }
     }
+    
     checkAuth()
+    
+    return () => {
+      mounted = false
+    }
   }, [router])
 
   // Handle logout
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { 
-        method: 'POST',
-        credentials: 'include', // Important: Include cookies
-      })
+      const { createClient } = await import('@/lib/supabase-client')
+      const supabase = createClient()
+      await supabase.auth.signOut()
       localStorage.removeItem('isAuthenticated')
       localStorage.removeItem('userEmail')
       window.location.href = '/login' // Use window.location for full page reload

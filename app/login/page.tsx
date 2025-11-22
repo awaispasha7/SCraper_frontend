@@ -16,15 +16,22 @@ export default function LoginPage() {
     const checkAuth = async () => {
       try {
         const supabase = createClient()
-        const { data: { session } } = await supabase.auth.getSession()
-        if (session) {
-          router.push('/')
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        // Only redirect if we have a valid session
+        if (!error && session && session.user) {
+          // Use replace to avoid adding to history
+          router.replace('/')
         }
       } catch (err) {
         // Not logged in, stay on login page
+        console.error('Auth check error:', err)
       }
     }
-    checkAuth()
+    
+    // Small delay to ensure session is ready
+    const timeout = setTimeout(checkAuth, 100)
+    return () => clearTimeout(timeout)
   }, [router])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -49,8 +56,17 @@ export default function LoginPage() {
         throw new Error('Login failed. Please try again.')
       }
 
-      // Successfully logged in - redirect to dashboard
-      window.location.href = '/'
+      // Wait a moment for session to be fully established
+      await new Promise(resolve => setTimeout(resolve, 300))
+      
+      // Verify session is set
+      const { data: { session: verifySession } } = await supabase.auth.getSession()
+      if (!verifySession) {
+        throw new Error('Session not established. Please try again.')
+      }
+
+      // Successfully logged in - redirect to dashboard using replace
+      router.replace('/')
     } catch (err: any) {
       console.error('Login error:', err)
       const errorMessage = err.message || 'Login failed. Please check your credentials.'

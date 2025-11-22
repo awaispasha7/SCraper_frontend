@@ -1,35 +1,83 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase-client'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
+  const pathname = usePathname()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
 
   useEffect(() => {
+    let mounted = true
+
     const checkAuth = async () => {
       try {
         const supabase = createClient()
+        
+        // Get session
         const { data: { session }, error } = await supabase.auth.getSession()
         
+        if (!mounted) return
+        
         if (error || !session) {
-          router.push('/login')
+          // Only redirect if not already on login page
+          if (pathname !== '/login') {
+            router.push('/login')
+          }
+          setIsAuthenticated(false)
+          setCheckingAuth(false)
+          return
+        }
+        
+        // If authenticated and on login page, redirect to dashboard
+        if (session && pathname === '/login') {
+          router.push('/')
           return
         }
         
         setIsAuthenticated(true)
       } catch (err) {
-        router.push('/login')
-        return
+        if (!mounted) return
+        // Only redirect if not already on login page
+        if (pathname !== '/login') {
+          router.push('/login')
+        }
+        setIsAuthenticated(false)
       } finally {
-        setCheckingAuth(false)
+        if (mounted) {
+          setCheckingAuth(false)
+        }
       }
     }
+    
     checkAuth()
-  }, [router])
+
+    // Listen for auth state changes
+    const supabase = createClient()
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (!mounted) return
+      
+      if (event === 'SIGNED_IN' && session) {
+        setIsAuthenticated(true)
+        if (pathname === '/login') {
+          router.push('/')
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setIsAuthenticated(false)
+        if (pathname !== '/login') {
+          router.push('/login')
+        }
+      }
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [router, pathname])
 
   if (checkingAuth) {
     return (
