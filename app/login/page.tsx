@@ -15,12 +15,20 @@ export default function LoginPage() {
     // Check if already logged in using Supabase client
     const checkAuth = async () => {
       try {
+        // Check if we just logged out (from localStorage flag)
+        const justLoggedOut = localStorage.getItem('justLoggedOut') === 'true'
+        if (justLoggedOut) {
+          // Clear the flag and stay on login page
+          localStorage.removeItem('justLoggedOut')
+          return
+        }
+        
         const supabase = createClient()
         const { data: { session }, error } = await supabase.auth.getSession()
         
         // Only redirect if we have a valid session AND we're on login page
-        // Don't redirect immediately - let user see login page first
-        if (!error && session && session.user) {
+        // AND we didn't just log out
+        if (!error && session && session.user && !justLoggedOut) {
           // Small delay before redirect to prevent flash
           setTimeout(() => {
             router.replace('/')
@@ -33,7 +41,7 @@ export default function LoginPage() {
     }
     
     // Delay check to allow login page to render first
-    const timeout = setTimeout(checkAuth, 200)
+    const timeout = setTimeout(checkAuth, 300)
     return () => clearTimeout(timeout)
   }, [router])
 

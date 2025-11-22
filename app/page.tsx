@@ -87,12 +87,25 @@ export default function Dashboard() {
     try {
       const { createClient } = await import('@/lib/supabase-client')
       const supabase = createClient()
+      
+      // Set flag to prevent auto-redirect on login page
+      localStorage.setItem('justLoggedOut', 'true')
+      
+      // Sign out from Supabase
       await supabase.auth.signOut()
+      
+      // Clear all auth-related data
       localStorage.removeItem('isAuthenticated')
       localStorage.removeItem('userEmail')
-      window.location.href = '/login' // Use window.location for full page reload
+      
+      // Wait a moment to ensure session is cleared
+      await new Promise(resolve => setTimeout(resolve, 200))
+      
+      // Redirect to login page
+      window.location.href = '/login'
     } catch (err) {
       // Still redirect even if logout fails
+      localStorage.setItem('justLoggedOut', 'true')
       localStorage.removeItem('isAuthenticated')
       localStorage.removeItem('userEmail')
       window.location.href = '/login'

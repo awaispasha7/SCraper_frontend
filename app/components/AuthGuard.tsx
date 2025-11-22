@@ -62,11 +62,17 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       
       if (event === 'SIGNED_IN' && session) {
         setIsAuthenticated(true)
-        if (pathname === '/login') {
+        // Only redirect to dashboard if not just logged out
+        const justLoggedOut = typeof window !== 'undefined' && localStorage.getItem('justLoggedOut') === 'true'
+        if (pathname === '/login' && !justLoggedOut) {
           router.replace('/')
         }
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false)
+        // Set flag to prevent auto-redirect
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('justLoggedOut', 'true')
+        }
         if (pathname !== '/login') {
           router.replace('/login')
         }
