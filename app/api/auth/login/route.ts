@@ -64,7 +64,12 @@ export async function POST(request: NextRequest) {
 
     // Set HTTP-only cookie
     const cookieStore = await cookies()
-    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT
+    // Ensure isProduction is always a boolean
+    const isProduction = Boolean(
+      process.env.NODE_ENV === 'production' || 
+      process.env.VERCEL || 
+      process.env.RAILWAY_ENVIRONMENT
+    )
     
     cookieStore.set('session_token', sessionToken, {
       httpOnly: true,
