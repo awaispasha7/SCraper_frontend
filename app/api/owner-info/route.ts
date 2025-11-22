@@ -100,6 +100,79 @@ export async function GET(request: NextRequest) {
     console.log(`   Source: "${source || 'default'}"`)
     console.log(`   Using Atom API Key: ${atomApiKey.substring(0, 10)}...`)
 
+    // ALWAYS check Supabase listings table FIRST for For Sale By Owner listings
+    // Since all owner data is already in Supabase, we should fetch from there
+    const dbClient = supabaseAdmin || supabase
+    if (dbClient) {
+      try {
+        console.log('📥 Checking Supabase listings table for owner data...')
+        
+        // Try to find listing by address or listing_link
+        let query = dbClient
+          .from('listings')
+          .select('owner_name, mailing_address, owner_emails, owner_phones, address, listing_link')
+        
+        if (listingLink) {
+          query = query.eq('listing_link', listingLink)
+        } else {
+          query = query.ilike('address', `%${address}%`)
+        }
+        
+        const { data: listing, error: listingError } = await query.maybeSingle()
+        
+        if (!listingError && listing) {
+          console.log('✅ Found For Sale By Owner listing in Supabase with owner data')
+          
+          // Parse emails and phones from JSONB or text format
+          const parseEmails = (emailsData: any): string[] => {
+            if (!emailsData) return []
+            if (typeof emailsData === 'string') {
+              try {
+                return JSON.parse(emailsData)
+              } catch {
+                return emailsData.split(/[,\n]/).map((e: string) => e.trim()).filter((e: string) => e && e.includes('@'))
+              }
+            }
+            if (Array.isArray(emailsData)) return emailsData
+            return []
+          }
+          
+          const parsePhones = (phonesData: any): string[] => {
+            if (!phonesData) return []
+            if (typeof phonesData === 'string') {
+              try {
+                return JSON.parse(phonesData)
+              } catch {
+                return phonesData.split(/[,\n]/).map((p: string) => p.trim()).filter((p: string) => p && /[\d-]/.test(p))
+              }
+            }
+            if (Array.isArray(phonesData)) return phonesData
+            return []
+          }
+          
+          const allEmails = parseEmails(listing.owner_emails)
+          const allPhones = parsePhones(listing.owner_phones)
+          
+          // Return owner data from Supabase
+          return NextResponse.json({
+            ownerName: listing.owner_name && listing.owner_name !== 'null' ? listing.owner_name : null,
+            mailingAddress: listing.mailing_address && listing.mailing_address !== 'null' ? listing.mailing_address : null,
+            email: allEmails.length > 0 ? allEmails[0] : null,
+            phone: allPhones.length > 0 ? allPhones[0] : null,
+            allEmails: allEmails,
+            allPhones: allPhones,
+            propertyAddress: listing.address || address,
+            source: 'supabase_listings'
+          })
+        } else {
+          console.log('⚠️ Listing not found in Supabase listings table')
+        }
+      } catch (supabaseError) {
+        console.warn('⚠️ Error checking Supabase listings table:', supabaseError)
+        // Continue to check other sources
+      }
+    }
+
     // Check Supabase for Trulia listings data first (if source is trulia)
     if (source === 'trulia') {
       const dbClient = supabaseAdmin || supabase
