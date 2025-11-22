@@ -11,13 +11,12 @@ export async function GET() {
 
     if (dbClient) {
       try {
-        // Fetch Trulia listings from Supabase - Optimized query
+        // Fetch Trulia listings from Supabase
         console.log('📥 Fetching Trulia listings from Supabase...')
         const { data: listings, error } = await dbClient
           .from('trulia_listings')
-          .select('id, address, price, beds, baths, square_feet, listing_link, property_type, lot_size, description, owner_name, mailing_address, emails, phones, is_active_for_sale, is_off_market, is_recently_sold, is_foreclosure')
+          .select('*')
           .order('id', { ascending: true })
-          .limit(1000) // Add limit for performance
 
         if (!error && listings && listings.length > 0) {
           console.log(`✅ Found ${listings.length} Trulia listings in Supabase`)
