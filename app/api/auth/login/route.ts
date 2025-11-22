@@ -64,12 +64,15 @@ export async function POST(request: NextRequest) {
 
     // Set HTTP-only cookie
     const cookieStore = await cookies()
+    const isProduction = process.env.NODE_ENV === 'production' || process.env.VERCEL || process.env.RAILWAY_ENVIRONMENT
+    
     cookieStore.set('session_token', sessionToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: isProduction, // Use HTTPS in production
       sameSite: 'lax',
       expires: expiresAt,
       path: '/',
+      // Don't set domain - let browser use default
     })
 
     return NextResponse.json({

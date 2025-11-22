@@ -51,7 +51,9 @@ export default function Dashboard() {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check')
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include', // Important: Include cookies
+        })
         if (response.ok) {
           const data = await response.json()
           if (data.authenticated) {
@@ -77,15 +79,18 @@ export default function Dashboard() {
   // Handle logout
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      await fetch('/api/auth/logout', { 
+        method: 'POST',
+        credentials: 'include', // Important: Include cookies
+      })
       localStorage.removeItem('isAuthenticated')
       localStorage.removeItem('userEmail')
-      router.push('/login')
+      window.location.href = '/login' // Use window.location for full page reload
     } catch (err) {
       // Still redirect even if logout fails
       localStorage.removeItem('isAuthenticated')
       localStorage.removeItem('userEmail')
-      router.push('/login')
+      window.location.href = '/login'
     }
   }
 

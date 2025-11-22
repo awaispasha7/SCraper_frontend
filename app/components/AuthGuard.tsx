@@ -11,7 +11,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check')
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include', // Important: Include cookies
+        })
         if (response.ok) {
           const data = await response.json()
           if (data.authenticated) {

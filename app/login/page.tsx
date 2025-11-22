@@ -14,7 +14,9 @@ export default function LoginPage() {
     // Check if already logged in
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check')
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include', // Important: Include cookies
+        })
         if (response.ok) {
           const data = await response.json()
           if (data.authenticated) {
@@ -39,6 +41,7 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
+        credentials: 'include', // Important: Include cookies in request
         body: JSON.stringify({ email, password }),
       })
 
@@ -49,12 +52,29 @@ export default function LoginPage() {
       }
 
       if (data.success) {
-        // Store session in localStorage
+        // Store session in localStorage as backup
         localStorage.setItem('isAuthenticated', 'true')
         localStorage.setItem('userEmail', email)
         
-        // Redirect to dashboard
-        router.push('/')
+        // Wait a moment for cookie to be set, then verify auth before redirect
+        await new Promise(resolve => setTimeout(resolve, 100))
+        
+        // Verify authentication was successful
+        const checkResponse = await fetch('/api/auth/check', {
+          credentials: 'include', // Important: Include cookies
+        })
+        
+        if (checkResponse.ok) {
+          const checkData = await checkResponse.json()
+          if (checkData.authenticated) {
+            // Redirect to dashboard
+            window.location.href = '/' // Use window.location for full page reload
+          } else {
+            throw new Error('Authentication verification failed')
+          }
+        } else {
+          throw new Error('Could not verify authentication')
+        }
       } else {
         throw new Error(data.error || 'Login failed')
       }
