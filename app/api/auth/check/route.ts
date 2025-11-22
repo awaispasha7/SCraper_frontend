@@ -27,11 +27,14 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ authenticated: false })
     }
 
+    // Handle users relation - it can be an object or array
+    const userData = Array.isArray(session.users) ? session.users[0] : session.users
+
     return NextResponse.json({
       authenticated: true,
       user: {
         id: session.user_id,
-        email: session.users?.email,
+        email: userData?.email || null,
       },
     })
   } catch (error) {
