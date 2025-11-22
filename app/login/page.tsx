@@ -18,10 +18,13 @@ export default function LoginPage() {
         const supabase = createClient()
         const { data: { session }, error } = await supabase.auth.getSession()
         
-        // Only redirect if we have a valid session
+        // Only redirect if we have a valid session AND we're on login page
+        // Don't redirect immediately - let user see login page first
         if (!error && session && session.user) {
-          // Use replace to avoid adding to history
-          router.replace('/')
+          // Small delay before redirect to prevent flash
+          setTimeout(() => {
+            router.replace('/')
+          }, 500)
         }
       } catch (err) {
         // Not logged in, stay on login page
@@ -29,8 +32,8 @@ export default function LoginPage() {
       }
     }
     
-    // Small delay to ensure session is ready
-    const timeout = setTimeout(checkAuth, 100)
+    // Delay check to allow login page to render first
+    const timeout = setTimeout(checkAuth, 200)
     return () => clearTimeout(timeout)
   }, [router])
 

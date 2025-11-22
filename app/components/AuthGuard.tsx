@@ -25,7 +25,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         if (error || !session) {
           // Only redirect if not already on login page
           if (pathname !== '/login') {
-            router.push('/login')
+            router.replace('/login')
           }
           setIsAuthenticated(false)
           setCheckingAuth(false)
@@ -34,7 +34,7 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         
         // If authenticated and on login page, redirect to dashboard
         if (session && pathname === '/login') {
-          router.push('/')
+          router.replace('/')
           return
         }
         
@@ -63,12 +63,12 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       if (event === 'SIGNED_IN' && session) {
         setIsAuthenticated(true)
         if (pathname === '/login') {
-          router.push('/')
+          router.replace('/')
         }
       } else if (event === 'SIGNED_OUT') {
         setIsAuthenticated(false)
         if (pathname !== '/login') {
-          router.push('/login')
+          router.replace('/login')
         }
       }
     })

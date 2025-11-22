@@ -38,14 +38,15 @@ function RedfinListingsPageContent() {
 
   const handleLogout = async () => {
     try {
-      await fetch('/api/auth/logout', { method: 'POST' })
+      const supabase = createClient()
+      await supabase.auth.signOut()
       localStorage.removeItem('isAuthenticated')
       localStorage.removeItem('userEmail')
-      router.push('/login')
+      window.location.href = '/login'
     } catch (err) {
       localStorage.removeItem('isAuthenticated')
       localStorage.removeItem('userEmail')
-      router.push('/login')
+      window.location.href = '/login'
     }
   }
 
