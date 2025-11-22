@@ -18,73 +18,27 @@ export async function GET() {
 
     // Fetch listings from Supabase
     // Explicitly select owner_emails, owner_phones, owner_name, and mailing_address columns from Supabase
-    // Try to filter by is_active and is_chicago if columns exist
+    // Show ALL listings without any filters to display all 133 listings from CSV
     let { data: listings, error } = await supabase
       .from('listings')
       .select('*, owner_emails, owner_phones, owner_name, mailing_address')
-      .eq('is_active', true)
-      .eq('is_chicago', true)
-      .order('created_at', { ascending: false })
+      .order('id', { ascending: true })
 
     // Handle errors gracefully
     if (error) {
-      // If error is about missing columns (is_active, is_chicago), fetch without filters
-      if (error.message?.includes('is_active') || error.message?.includes('is_chicago') || 
-          error.message?.includes('column') && error.message?.includes('does not exist')) {
-        console.warn('⚠️ Status columns not found, fetching all listings without filters')
-        const result = await supabase
-          .from('listings')
-          .select('*, owner_emails, owner_phones, owner_name, mailing_address')
-          .order('created_at', { ascending: false })
-        
-        listings = result.data
-        error = result.error
-        
-        if (error) {
-          console.warn('Supabase query error:', error.message)
-          if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
-            return NextResponse.json({
-              scrape_timestamp: new Date().toISOString(),
-              total_listings: 0,
-              listings: []
-            })
-          }
-          return NextResponse.json({
-            scrape_timestamp: new Date().toISOString(),
-            total_listings: 0,
-            listings: []
-          })
-        }
-      } else {
-        // Other errors
-        console.warn('Supabase query error:', error.message)
-        if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
-          return NextResponse.json({
-            scrape_timestamp: new Date().toISOString(),
-            total_listings: 0,
-            listings: []
-          })
-        }
+      console.warn('Supabase query error:', error.message)
+      if (error.message?.includes('relation') || error.message?.includes('does not exist')) {
         return NextResponse.json({
           scrape_timestamp: new Date().toISOString(),
           total_listings: 0,
           listings: []
         })
       }
-    }
-
-    // If no listings found with filters, try without filters (columns might exist but values are NULL)
-    if (!listings || listings.length === 0) {
-      console.warn('⚠️ No listings found with filters, fetching all listings without filters')
-      const result = await supabase
-        .from('listings')
-        .select('*, owner_emails, owner_phones')
-        .order('created_at', { ascending: false })
-      
-      if (!result.error && result.data && result.data.length > 0) {
-        console.log(`✅ Found ${result.data.length} listings without filters`)
-        listings = result.data
-      }
+      return NextResponse.json({
+        scrape_timestamp: new Date().toISOString(),
+        total_listings: 0,
+        listings: []
+      })
     }
 
     // Get latest scrape metadata (use maybeSingle() to handle empty results)

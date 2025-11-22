@@ -1127,62 +1127,6 @@ export default function Dashboard() {
                   </div>
                 )}
 
-                {/* Owner Information Section */}
-                {((listing.owner_name && listing.owner_name !== 'null' && listing.owner_name !== 'None') ||
-                  (listing.mailing_address && listing.mailing_address !== 'null' && listing.mailing_address !== 'None') ||
-                  (listing.owner_emails && listing.owner_emails.length > 0) ||
-                  (listing.owner_phones && listing.owner_phones.length > 0)) && (
-                  <div className="mb-6 bg-gray-50 rounded-lg p-4 border border-gray-200">
-                    <div className="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-3">Owner Information</div>
-                    <div className="space-y-2 text-sm">
-                      {listing.owner_name && listing.owner_name !== 'null' && listing.owner_name !== 'None' && listing.owner_name.trim() !== '' && (
-                        <div className="flex items-start gap-2">
-                          <span className="text-gray-500 font-medium min-w-[80px]">Name:</span>
-                          <span className="text-gray-900 font-semibold">{listing.owner_name}</span>
-                        </div>
-                      )}
-                      {listing.mailing_address && listing.mailing_address !== 'null' && listing.mailing_address !== 'None' && listing.mailing_address.trim() !== '' && (
-                        <div className="flex items-start gap-2">
-                          <span className="text-gray-500 font-medium min-w-[80px]">Address:</span>
-                          <span className="text-gray-900">{listing.mailing_address}</span>
-                        </div>
-                      )}
-                      {listing.owner_emails && listing.owner_emails.length > 0 && (
-                        <div className="flex items-start gap-2">
-                          <span className="text-gray-500 font-medium min-w-[80px]">Email:</span>
-                          <div className="flex flex-col gap-1">
-                            {listing.owner_emails.map((email: string, idx: number) => (
-                              <a
-                                key={idx}
-                                href={`mailto:${email}`}
-                                className="text-blue-600 hover:text-blue-800 underline"
-                              >
-                                {email}
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {listing.owner_phones && listing.owner_phones.length > 0 && (
-                        <div className="flex items-start gap-2">
-                          <span className="text-gray-500 font-medium min-w-[80px]">Phone:</span>
-                          <div className="flex flex-col gap-1">
-                            {listing.owner_phones.map((phone: string, idx: number) => (
-                              <a
-                                key={idx}
-                                href={`tel:${phone}`}
-                                className="text-blue-600 hover:text-blue-800 underline"
-                              >
-                                {phone}
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
                 {/* Buttons - More Professional */}
                 <div className="flex flex-col gap-3 mt-6">
                   {listing.listing_link && (
