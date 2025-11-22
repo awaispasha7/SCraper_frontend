@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase-client'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -11,17 +12,13 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Check if already logged in
+    // Check if already logged in using Supabase client
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check', {
-          credentials: 'include', // Important: Include cookies
-        })
-        if (response.ok) {
-          const data = await response.json()
-          if (data.authenticated) {
-            router.push('/')
-          }
+        const supabase = createClient()
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session) {
+          router.push('/')
         }
       } catch (err) {
         // Not logged in, stay on login page
@@ -36,65 +33,26 @@ export default function LoginPage() {
     setError(null)
 
     try {
-      const response = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        credentials: 'include', // Important: Include cookies in request
-        body: JSON.stringify({ email, password }),
+      const supabase = createClient()
+      
+      // Sign in with Supabase Auth
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase().trim(),
+        password: password,
       })
 
-      const data = await response.json()
-
-      if (!response.ok) {
-        // Show detailed error message
-        const errorMsg = data.error || data.message || 'Login failed'
-        console.error('Login error:', { status: response.status, data })
-        throw new Error(errorMsg)
+      if (authError) {
+        throw new Error(authError.message || 'Invalid email or password')
       }
 
-      if (data.success) {
-        // Store session in localStorage as backup
-        localStorage.setItem('isAuthenticated', 'true')
-        localStorage.setItem('userEmail', email)
-        
-        // Wait a moment for cookie to be set, then verify auth before redirect
-        await new Promise(resolve => setTimeout(resolve, 200))
-        
-        // Verify authentication was successful
-        try {
-          const checkResponse = await fetch('/api/auth/check', {
-            credentials: 'include', // Important: Include cookies
-            cache: 'no-store', // Don't cache this request
-          })
-          
-          if (checkResponse.ok) {
-            const checkData = await checkResponse.json()
-            if (checkData.authenticated) {
-              // Redirect to dashboard
-              window.location.href = '/' // Use window.location for full page reload
-              return // Exit early
-            } else {
-              console.error('Auth check failed:', checkData)
-              throw new Error('Authentication verification failed. Please try again.')
-            }
-          } else {
-            const checkError = await checkResponse.json().catch(() => ({}))
-            console.error('Auth check request failed:', checkError)
-            throw new Error('Could not verify authentication. Please try again.')
-          }
-        } catch (checkErr: any) {
-          console.error('Auth verification error:', checkErr)
-          // Still redirect - cookie might be set even if check fails
-          window.location.href = '/'
-          return
-        }
-      } else {
-        throw new Error(data.error || 'Login failed')
+      if (!data.user || !data.session) {
+        throw new Error('Login failed. Please try again.')
       }
+
+      // Successfully logged in - redirect to dashboard
+      window.location.href = '/'
     } catch (err: any) {
-      console.error('Login catch error:', err)
+      console.error('Login error:', err)
       const errorMessage = err.message || 'Login failed. Please check your credentials.'
       setError(errorMessage)
       

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase-client'
 
 export default function AuthGuard({ children }: { children: React.ReactNode }) {
   const router = useRouter()
@@ -11,21 +12,15 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        const response = await fetch('/api/auth/check', {
-          credentials: 'include', // Important: Include cookies
-        })
-        if (response.ok) {
-          const data = await response.json()
-          if (data.authenticated) {
-            setIsAuthenticated(true)
-          } else {
-            router.push('/login')
-            return
-          }
-        } else {
+        const supabase = createClient()
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error || !session) {
           router.push('/login')
           return
         }
+        
+        setIsAuthenticated(true)
       } catch (err) {
         router.push('/login')
         return

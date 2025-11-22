@@ -1,40 +1,44 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function GET(request: NextRequest) {
   try {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json({ authenticated: false })
+    }
+
+    // Create Supabase client for server-side auth
     const cookieStore = await cookies()
-    const sessionToken = cookieStore.get('session_token')?.value
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: '', ...options })
+        },
+      },
+    })
 
-    if (!sessionToken) {
+    // Get current session
+    const { data: { user, session }, error } = await supabase.auth.getUser()
+
+    if (error || !user || !session) {
       return NextResponse.json({ authenticated: false })
     }
-
-    if (!supabaseAdmin) {
-      return NextResponse.json({ authenticated: false })
-    }
-
-    // Check session in Supabase
-    const { data: session, error } = await supabaseAdmin
-      .from('user_sessions')
-      .select('user_id, expires_at, users(id, email)')
-      .eq('session_token', sessionToken)
-      .gt('expires_at', new Date().toISOString())
-      .single()
-
-    if (error || !session) {
-      return NextResponse.json({ authenticated: false })
-    }
-
-    // Handle users relation - it can be an object or array
-    const userData = Array.isArray(session.users) ? session.users[0] : session.users
 
     return NextResponse.json({
       authenticated: true,
       user: {
-        id: session.user_id,
-        email: userData?.email || null,
+        id: user.id,
+        email: user.email,
       },
     })
   } catch (error) {

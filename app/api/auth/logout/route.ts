@@ -1,28 +1,36 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 
 export async function POST(request: NextRequest) {
   try {
-    const cookieStore = await cookies()
-    const sessionToken = cookieStore.get('session_token')?.value
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
-    if (sessionToken && supabaseAdmin) {
-      // Delete session from Supabase
-      await supabaseAdmin
-        .from('user_sessions')
-        .delete()
-        .eq('session_token', sessionToken)
+    if (!supabaseUrl || !supabaseAnonKey) {
+      return NextResponse.json({ success: true })
     }
 
-    // Clear cookie
-    cookieStore.delete('session_token')
+    const cookieStore = await cookies()
+    const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+      cookies: {
+        get(name: string) {
+          return cookieStore.get(name)?.value
+        },
+        set(name: string, value: string, options: any) {
+          cookieStore.set({ name, value, ...options })
+        },
+        remove(name: string, options: any) {
+          cookieStore.set({ name, value: '', ...options })
+        },
+      },
+    })
+
+    // Sign out using Supabase Auth
+    await supabase.auth.signOut()
 
     return NextResponse.json({ success: true })
   } catch (error) {
-    // Still return success even if there's an error
-    const cookieStore = await cookies()
-    cookieStore.delete('session_token')
     return NextResponse.json({ success: true })
   }
 }
