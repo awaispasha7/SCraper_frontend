@@ -4,7 +4,8 @@ import { supabase, supabaseAdmin } from '@/lib/supabase'
 import fs from 'fs'
 import path from 'path'
 
-const ATOM_API_KEY = process.env.ATTOM_API_KEY || 'ad54cb9d2627beaab4c34edb8fa8464e'
+// Atom API key for For Sale By Owner listings
+const ATOM_API_KEY = process.env.ATTOM_API_KEY || '00088313f4a127201256b9bf19a2963b'
 // Separate Atom API key for Trulia/Redfin listings
 // Can be set via TRULIA_REDFIN_ATTOM_API_KEY environment variable, otherwise uses default
 const TRULIA_REDFIN_ATOM_API_KEY = process.env.TRULIA_REDFIN_ATTOM_API_KEY || '00088313f4a127201256b9bf19a2963b'
@@ -153,10 +154,89 @@ export async function GET(request: NextRequest) {
           const allEmails = parseEmails(listing.owner_emails)
           const allPhones = parsePhones(listing.owner_phones)
           
-          // Return owner data from Supabase
+          // Get owner name and mailing address from Supabase
+          let ownerName = listing.owner_name && listing.owner_name !== 'null' ? listing.owner_name : null
+          let mailingAddress = listing.mailing_address && listing.mailing_address !== 'null' ? listing.mailing_address : null
+          
+          // If mailing address is missing, try to fetch from Atom API for For Sale By Owner listings
+          if (!mailingAddress || mailingAddress === '' || mailingAddress === 'null') {
+            console.log('⚠️ Mailing address missing in Supabase, fetching from Atom API...')
+            
+            try {
+              // Parse address for Atom API
+              const addressLower = address.toLowerCase().trim()
+              let atomAddress1 = address.trim()
+              let atomAddress2 = 'Chicago, IL'
+              
+              // Extract street address and city/state
+              const parts = address.split(',')
+              if (parts.length >= 2) {
+                atomAddress1 = parts[0].trim()
+                atomAddress2 = parts.slice(1).join(',').trim()
+              } else {
+                // Try to extract city from address (usually at the end before ZIP)
+                const addressParts = address.trim().split(/\s+/)
+                const zipMatch = address.match(/\b\d{5}\b/)
+                if (zipMatch) {
+                  const zipIndex = address.indexOf(zipMatch[0])
+                  atomAddress1 = address.substring(0, zipIndex).trim()
+                  atomAddress2 = `Chicago, IL ${zipMatch[0]}`
+                }
+              }
+              
+              // Call Atom API to get mailing address
+              const atomApiUrl = `${ATOM_API_BASE_URL}/property/expandedprofile`
+              const atomParams = new URLSearchParams({
+                address1: atomAddress1,
+                address2: atomAddress2
+              })
+              
+              const atomResponse = await fetch(`${atomApiUrl}?${atomParams.toString()}`, {
+                headers: {
+                  'apikey': ATOM_API_KEY,
+                  'Accept': 'application/json'
+                }
+              })
+              
+              if (atomResponse.ok) {
+                const atomData = await atomResponse.json()
+                
+                // Extract mailing address from Atom API response
+                if (atomData.property?.assessment?.owner?.mailingAddressOneLine) {
+                  mailingAddress = atomData.property.assessment.owner.mailingAddressOneLine
+                  console.log(`✅ Fetched mailing address from Atom API: ${mailingAddress}`)
+                } else if (atomData.property?.assessment?.owner?.mailingAddress) {
+                  const mailAddr = atomData.property.assessment.owner.mailingAddress
+                  const parts = [
+                    mailAddr.address1,
+                    mailAddr.city,
+                    mailAddr.state,
+                    mailAddr.zip
+                  ].filter(Boolean)
+                  if (parts.length > 0) {
+                    mailingAddress = parts.join(', ')
+                    console.log(`✅ Fetched mailing address from Atom API: ${mailingAddress}`)
+                  }
+                }
+                
+                // Also update owner name if missing
+                if ((!ownerName || ownerName === 'null' || ownerName === '') && atomData.property?.assessment?.owner?.owner1?.fullName) {
+                  ownerName = atomData.property.assessment.owner.owner1.fullName
+                  console.log(`✅ Fetched owner name from Atom API: ${ownerName}`)
+                }
+              } else {
+                console.warn(`⚠️ Atom API returned ${atomResponse.status} - mailing address not fetched`)
+              }
+            } catch (atomError: any) {
+              console.warn('⚠️ Error fetching from Atom API:', atomError.message)
+              // Continue with data from Supabase
+            }
+          }
+          
+          // Return owner data from Supabase (with Atom API enrichment if needed)
           return NextResponse.json({
-            ownerName: listing.owner_name && listing.owner_name !== 'null' ? listing.owner_name : null,
-            mailingAddress: listing.mailing_address && listing.mailing_address !== 'null' ? listing.mailing_address : null,
+            ownerName: ownerName,
+            mailingAddress: mailingAddress,
             email: allEmails.length > 0 ? allEmails[0] : null,
             phone: allPhones.length > 0 ? allPhones[0] : null,
             allEmails: allEmails,
