@@ -48,7 +48,10 @@ export default function LoginPage() {
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Login failed')
+        // Show detailed error message
+        const errorMsg = data.error || data.message || 'Login failed'
+        console.error('Login error:', { status: response.status, data })
+        throw new Error(errorMsg)
       }
 
       if (data.success) {
@@ -57,29 +60,48 @@ export default function LoginPage() {
         localStorage.setItem('userEmail', email)
         
         // Wait a moment for cookie to be set, then verify auth before redirect
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise(resolve => setTimeout(resolve, 200))
         
         // Verify authentication was successful
-        const checkResponse = await fetch('/api/auth/check', {
-          credentials: 'include', // Important: Include cookies
-        })
-        
-        if (checkResponse.ok) {
-          const checkData = await checkResponse.json()
-          if (checkData.authenticated) {
-            // Redirect to dashboard
-            window.location.href = '/' // Use window.location for full page reload
+        try {
+          const checkResponse = await fetch('/api/auth/check', {
+            credentials: 'include', // Important: Include cookies
+            cache: 'no-store', // Don't cache this request
+          })
+          
+          if (checkResponse.ok) {
+            const checkData = await checkResponse.json()
+            if (checkData.authenticated) {
+              // Redirect to dashboard
+              window.location.href = '/' // Use window.location for full page reload
+              return // Exit early
+            } else {
+              console.error('Auth check failed:', checkData)
+              throw new Error('Authentication verification failed. Please try again.')
+            }
           } else {
-            throw new Error('Authentication verification failed')
+            const checkError = await checkResponse.json().catch(() => ({}))
+            console.error('Auth check request failed:', checkError)
+            throw new Error('Could not verify authentication. Please try again.')
           }
-        } else {
-          throw new Error('Could not verify authentication')
+        } catch (checkErr: any) {
+          console.error('Auth verification error:', checkErr)
+          // Still redirect - cookie might be set even if check fails
+          window.location.href = '/'
+          return
         }
       } else {
         throw new Error(data.error || 'Login failed')
       }
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please check your credentials.')
+      console.error('Login catch error:', err)
+      const errorMessage = err.message || 'Login failed. Please check your credentials.'
+      setError(errorMessage)
+      
+      // If it's a network error, suggest checking connection
+      if (err.message?.includes('fetch') || err.message?.includes('network')) {
+        setError('Network error. Please check your connection and try again.')
+      }
     } finally {
       setLoading(false)
     }

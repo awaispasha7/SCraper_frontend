@@ -14,8 +14,17 @@ export async function POST(request: NextRequest) {
     }
 
     if (!supabaseAdmin) {
+      console.error('Supabase admin client not initialized')
+      console.error('SUPABASE_URL:', process.env.SUPABASE_URL ? 'Set' : 'Missing')
+      console.error('SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Set' : 'Missing')
       return NextResponse.json(
-        { error: 'Database connection not available' },
+        { 
+          error: 'Database connection not available',
+          debug: process.env.NODE_ENV === 'development' ? {
+            supabaseUrl: process.env.SUPABASE_URL ? 'Set' : 'Missing',
+            serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY ? 'Set' : 'Missing'
+          } : undefined
+        },
         { status: 500 }
       )
     }
