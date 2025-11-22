@@ -831,8 +831,7 @@ export async function GET(request: NextRequest) {
 
     // FIRST: ALWAYS try to get email/phone from Supabase FIRST (before ATTOM API processing)
     // Use admin client for server-side queries (bypasses RLS if needed)
-    const dbClient = supabaseAdmin || supabase
-    
+    // Reuse dbClient that was already declared above (line 105)
     if (dbClient) {
       try {
         console.log(`\n🔍 [OWNER-INFO] Fetching email/phone from Supabase for: "${address}"`)
