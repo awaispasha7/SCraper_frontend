@@ -1,11 +1,13 @@
 'use client'
 
+import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import Sidebar from './Sidebar'
 
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isLoginPage = pathname === '/login'
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
   if (isLoginPage) {
     return <>{children}</>
@@ -13,8 +15,8 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
 
   return (
     <div className="flex">
-      <Sidebar />
-      <div className="flex-1 ml-64">
+      <Sidebar isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
+      <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
         {children}
       </div>
     </div>
