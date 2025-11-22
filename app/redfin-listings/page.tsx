@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import AuthGuard from '@/app/components/AuthGuard'
+import { createClient } from '@/lib/supabase-client'
 
 interface RedfinListing {
   id: number
