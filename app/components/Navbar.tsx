@@ -7,23 +7,23 @@ export default function Navbar() {
   const pathname = usePathname()
 
   return (
-    <nav className="bg-white shadow-md border-b border-gray-200 sticky top-0 z-50">
+    <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         {/* Mobile Layout - Stacked */}
-        <div className="flex flex-col md:hidden py-2">
-          <div className="flex items-center justify-center mb-2">
-            <h1 className="text-base font-bold text-gray-900">Dashboard</h1>
+        <div className="flex flex-col md:hidden py-3">
+          <div className="flex items-center justify-center mb-3">
+            <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
           </div>
-          <div className="flex items-center justify-center gap-1.5">
+          <div className="flex items-center justify-center gap-2">
             <Link
               href="/"
               className={`
-                px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap
+                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
                 transition-all duration-200
                 ${
                   pathname === '/'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
                 }
               `}
             >
@@ -32,12 +32,12 @@ export default function Navbar() {
             <Link
               href="/trulia-listings"
               className={`
-                px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap
+                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
                 transition-all duration-200
                 ${
                   pathname === '/trulia-listings'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
                 }
               `}
             >
@@ -46,12 +46,12 @@ export default function Navbar() {
             <Link
               href="/redfin-listings"
               className={`
-                px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap
+                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
                 transition-all duration-200
                 ${
                   pathname === '/redfin-listings'
-                    ? 'bg-red-50 text-red-700'
-                    : 'text-gray-700 hover:bg-gray-50'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
                 }
               `}
             >
@@ -61,23 +61,23 @@ export default function Navbar() {
         </div>
 
         {/* Desktop Layout - Horizontal */}
-        <div className="hidden md:flex items-center h-14 lg:h-16">
+        <div className="hidden md:flex items-center h-16 lg:h-18">
           {/* Logo/Brand */}
           <div className="flex items-center flex-shrink-0">
-            <h1 className="text-lg lg:text-xl xl:text-2xl font-bold text-gray-900">Dashboard</h1>
+            <h1 className="text-xl lg:text-2xl xl:text-3xl font-bold text-gray-900">Dashboard</h1>
           </div>
 
           {/* Navigation Links - Centered */}
-          <div className="flex items-center gap-2 lg:gap-3 xl:gap-4 flex-1 justify-center">
+          <div className="flex items-center gap-3 lg:gap-4 xl:gap-5 flex-1 justify-center">
             <Link
               href="/"
               className={`
-                px-3 lg:px-4 xl:px-5 py-2 rounded-lg text-sm lg:text-base font-medium whitespace-nowrap
+                px-4 lg:px-5 xl:px-6 py-2.5 rounded-lg text-sm lg:text-base font-semibold whitespace-nowrap
                 transition-all duration-200
                 ${
                   pathname === '/'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
                 }
               `}
             >
@@ -87,12 +87,12 @@ export default function Navbar() {
             <Link
               href="/trulia-listings"
               className={`
-                px-3 lg:px-4 xl:px-5 py-2 rounded-lg text-sm lg:text-base font-medium whitespace-nowrap
+                px-4 lg:px-5 xl:px-6 py-2.5 rounded-lg text-sm lg:text-base font-semibold whitespace-nowrap
                 transition-all duration-200
                 ${
                   pathname === '/trulia-listings'
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
                 }
               `}
             >
@@ -102,12 +102,12 @@ export default function Navbar() {
             <Link
               href="/redfin-listings"
               className={`
-                px-3 lg:px-4 xl:px-5 py-2 rounded-lg text-sm lg:text-base font-medium whitespace-nowrap
+                px-4 lg:px-5 xl:px-6 py-2.5 rounded-lg text-sm lg:text-base font-semibold whitespace-nowrap
                 transition-all duration-200
                 ${
                   pathname === '/redfin-listings'
-                    ? 'bg-red-50 text-red-700'
-                    : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'bg-red-600 text-white shadow-md'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
                 }
               `}
             >

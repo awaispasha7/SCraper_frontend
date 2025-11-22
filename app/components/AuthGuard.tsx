@@ -15,6 +15,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
 
     const checkAuth = async () => {
       try {
+        // Keep checking state true until we verify auth
+        setCheckingAuth(true)
+        
         const supabase = createClient()
         
         // Get session
@@ -28,7 +31,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
             router.replace('/login')
           }
           setIsAuthenticated(false)
-          setCheckingAuth(false)
+          if (mounted) {
+            setCheckingAuth(false)
+          }
           return
         }
         
@@ -37,6 +42,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         const justLoggedOut = typeof window !== 'undefined' && localStorage.getItem('justLoggedOut') === 'true'
         if (session && pathname === '/login' && !justLoggedOut) {
           router.replace('/')
+          if (mounted) {
+            setCheckingAuth(false)
+          }
           return
         }
         
@@ -55,7 +63,13 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
       }
     }
     
-    checkAuth()
+    // Small delay to prevent flash
+    const timeout = setTimeout(checkAuth, 50)
+    
+    return () => {
+      mounted = false
+      clearTimeout(timeout)
+    }
 
     // Listen for auth state changes
     const supabase = createClient()

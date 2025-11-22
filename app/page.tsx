@@ -53,6 +53,9 @@ export default function Dashboard() {
     
     const checkAuth = async () => {
       try {
+        // Don't show any content until auth is checked
+        setCheckingAuth(true)
+        
         const { createClient } = await import('@/lib/supabase-client')
         const supabase = createClient()
         const { data: { session }, error } = await supabase.auth.getSession()
@@ -60,6 +63,7 @@ export default function Dashboard() {
         if (!mounted) return
         
         if (error || !session) {
+          // Immediately redirect to login without showing dashboard
           router.replace('/login')
           return
         }
@@ -75,10 +79,12 @@ export default function Dashboard() {
       }
     }
     
-    checkAuth()
+    // Small delay to prevent flash
+    const timeout = setTimeout(checkAuth, 100)
     
     return () => {
       mounted = false
+      clearTimeout(timeout)
     }
   }, [router])
 
@@ -958,7 +964,7 @@ export default function Dashboard() {
               >
                 <span className="text-base sm:text-lg">🚪</span>
                 <span className="hidden sm:inline">Logout</span>
-                <span className="sm:hidden">Exit</span>
+                <span className="sm:hidden">Logout</span>
               </button>
             </div>
           </div>
@@ -1006,7 +1012,7 @@ export default function Dashboard() {
                     setSearchQuery(e.target.value)
                     setCurrentPage(1) // Reset to first page on search
                   }}
-                  placeholder="Search by owner name or mailing address..."
+                  placeholder="Search..."
                   className="w-full pl-12 pr-4 py-3.5 rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-gray-800 placeholder-gray-400 bg-white focus:bg-white font-medium"
                 />
               </div>
@@ -1158,7 +1164,7 @@ export default function Dashboard() {
                       href={listing.listing_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 lg:py-3.5 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center"
+                      className="block w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 lg:py-3.5 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center focus:outline-none focus:ring-0"
                     >
                       <span className="hidden sm:inline">View Listing</span>
                       <span className="sm:hidden">View Listing</span>
@@ -1188,7 +1194,7 @@ export default function Dashboard() {
                           window.location.href = `/owner-info?${params.toString()}`
                         }
                       }}
-                      className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 lg:py-3.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px]"
+                      className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 lg:py-3.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] focus:outline-none focus:ring-0"
                     >
                       <span className="hidden sm:inline">Owner Information</span>
                       <span className="sm:hidden">Owner Info</span>

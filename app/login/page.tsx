@@ -26,6 +26,9 @@ export default function LoginPage() {
           return
         }
         
+        // Wait a bit before checking to ensure page is ready
+        await new Promise(resolve => setTimeout(resolve, 300))
+        
         const supabase = createClient()
         const { data: { session }, error } = await supabase.auth.getSession()
         
@@ -33,13 +36,8 @@ export default function LoginPage() {
         // Add additional check to ensure we're not in a logout state
         const stillLoggedOut = localStorage.getItem('justLoggedOut') === 'true'
         if (!error && session && session.user && !stillLoggedOut) {
-          // Small delay before redirect to prevent flash
-          setTimeout(() => {
-            // Double check we're not in logout state before redirecting
-            if (localStorage.getItem('justLoggedOut') !== 'true') {
-              router.replace('/')
-            }
-          }, 500)
+          // Redirect to dashboard if authenticated
+          router.replace('/')
         }
       } catch (err) {
         // Not logged in, stay on login page
@@ -48,7 +46,7 @@ export default function LoginPage() {
     }
     
     // Delay check to allow login page to render first
-    const timeout = setTimeout(checkAuth, 500)
+    const timeout = setTimeout(checkAuth, 100)
     return () => clearTimeout(timeout)
   }, [router])
 

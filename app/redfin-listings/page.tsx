@@ -241,7 +241,7 @@ function RedfinListingsPageContent() {
                 >
                   <span className="text-base sm:text-lg">🚪</span>
                   <span className="hidden sm:inline">Logout</span>
-                  <span className="sm:hidden">Exit</span>
+                  <span className="sm:hidden">Logout</span>
                 </button>
               </div>
             </div>
@@ -308,7 +308,7 @@ function RedfinListingsPageContent() {
                       href={listing.listing_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center"
+                      className="block w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center focus:outline-none focus:ring-0"
                     >
                       <span className="hidden sm:inline">View on Redfin</span>
                       <span className="sm:hidden">View Listing</span>
@@ -340,7 +340,7 @@ function RedfinListingsPageContent() {
                           window.location.href = `/owner-info?${params.toString()}`
                         }
                       }}
-                      className="w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px]"
+                      className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] focus:outline-none focus:ring-0"
                     >
                       <span className="hidden sm:inline">Owner Information</span>
                       <span className="sm:hidden">Owner Info</span>

@@ -16,13 +16,13 @@ export async function GET() {
       )
     }
 
-    // Fetch listings from Supabase
-    // Explicitly select owner_emails, owner_phones, owner_name, and mailing_address columns from Supabase
-    // Show ALL listings without any filters to display all 133 listings from CSV
+    // Fetch listings from Supabase - Optimized query
+    // Only select necessary columns for faster loading
     let { data: listings, error } = await supabase
       .from('listings')
-      .select('*, owner_emails, owner_phones, owner_name, mailing_address')
+      .select('id, address, price, beds, baths, square_feet, listing_link, time_of_post, owner_emails, owner_phones, owner_name, mailing_address')
       .order('id', { ascending: true })
+      .limit(1000) // Add limit for performance
 
     // Handle errors gracefully
     if (error) {
