@@ -20,16 +20,25 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Normalize email for comparison
+    const normalizedEmail = email.toLowerCase().trim()
+    
     // Check credentials in Supabase users table
     const { data: user, error: userError } = await supabaseAdmin
       .from('users')
       .select('id, email, password')
-      .eq('email', email.toLowerCase().trim())
+      .eq('email', normalizedEmail)
       .single()
+
+    // Log error for debugging (in production, check Railway logs)
+    if (userError) {
+      console.error('Supabase query error:', userError)
+      console.error('Email searched:', normalizedEmail)
+    }
 
     if (userError || !user) {
       return NextResponse.json(
-        { error: 'Invalid email or password' },
+        { error: 'Invalid email or password', debug: process.env.NODE_ENV === 'development' ? { userError, normalizedEmail } : undefined },
         { status: 401 }
       )
     }
@@ -37,6 +46,7 @@ export async function POST(request: NextRequest) {
     // Verify password (in production, use bcrypt or similar)
     // For now, simple comparison (you should hash passwords in production)
     if (user.password !== password) {
+      console.error('Password mismatch for user:', normalizedEmail)
       return NextResponse.json(
         { error: 'Invalid email or password' },
         { status: 401 }
