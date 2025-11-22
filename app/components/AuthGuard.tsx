@@ -33,7 +33,9 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
         }
         
         // If authenticated and on login page, redirect to dashboard
-        if (session && pathname === '/login') {
+        // But only if we didn't just log out
+        const justLoggedOut = typeof window !== 'undefined' && localStorage.getItem('justLoggedOut') === 'true'
+        if (session && pathname === '/login' && !justLoggedOut) {
           router.replace('/')
           return
         }

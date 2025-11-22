@@ -1,24 +1,22 @@
 'use client'
 
-import { useState } from 'react'
 import { usePathname } from 'next/navigation'
-import Sidebar from './Sidebar'
+import Navbar from './Navbar'
 
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isLoginPage = pathname === '/login'
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true)
 
   if (isLoginPage) {
     return <>{children}</>
   }
 
   return (
-    <div className="flex">
-      <Sidebar isOpen={isSidebarOpen} onToggle={() => setIsSidebarOpen(!isSidebarOpen)} />
-      <div className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-0'}`}>
+    <div className="min-h-screen bg-gray-50">
+      <Navbar />
+      <main className="w-full">
         {children}
-      </div>
+      </main>
     </div>
   )
 }

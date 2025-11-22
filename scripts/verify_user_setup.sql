@@ -51,3 +51,4 @@ SELECT indexname, indexdef
 FROM pg_indexes 
 WHERE tablename IN ('users', 'user_sessions');
 
+

@@ -74,12 +74,19 @@ function RedfinListingsPageContent() {
       setLoading(true)
       setError(null)
       
+      // Add timeout for fetch request
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 second timeout
+      
       const response = await fetch('/api/redfin-listings?' + new Date().getTime(), {
         cache: 'no-store',
+        signal: controller.signal,
         headers: {
           'Cache-Control': 'no-cache',
         }
       })
+      
+      clearTimeout(timeoutId)
 
       if (!response.ok) {
         const errorData = await response.json()
@@ -89,7 +96,11 @@ function RedfinListingsPageContent() {
       const result = await response.json()
       setData(result)
     } catch (err: any) {
-      setError(err.message || 'Failed to load listings')
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please try again.')
+      } else {
+        setError(err.message || 'Failed to load listings')
+      }
       console.error('Error fetching Redfin listings:', err)
     } finally {
       setLoading(false)
@@ -200,35 +211,39 @@ function RedfinListingsPageContent() {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-2 tracking-tight">
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-1 sm:mb-2 tracking-tight">
                 Redfin Listings
               </h1>
-              <p className="text-gray-600 text-lg">
+              <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
                 DuPage County, Illinois - For Sale By Owner
               </p>
             </div>
-            <div className="flex items-center gap-4">
-              <div className="bg-red-50 rounded-lg px-6 py-3 border border-red-200">
-                <div className="text-3xl font-bold text-red-700">{data.total_listings}</div>
-                <div className="text-sm text-red-600 font-medium">Total Listings</div>
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4 w-full md:w-auto">
+              <div className="bg-red-50 rounded-lg px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 border border-red-200 flex-shrink-0">
+                <div className="text-2xl sm:text-3xl font-bold text-red-700">{data.total_listings}</div>
+                <div className="text-xs sm:text-sm text-red-600 font-medium">Total Listings</div>
               </div>
-              <button
-                onClick={fetchListings}
-                className="bg-blue-50 text-blue-700 border border-blue-300 px-6 py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
-              >
-                <span className="text-lg">🔄</span>
-                Refresh
-              </button>
-              <button
-                onClick={handleLogout}
-                className="bg-red-50 text-red-700 border border-red-300 px-6 py-3 rounded-lg hover:bg-red-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
-              >
-                <span className="text-lg">🚪</span>
-                Logout
-              </button>
+              <div className="flex items-center gap-2 sm:gap-3 flex-1 md:flex-initial">
+                <button
+                  onClick={fetchListings}
+                  className="bg-blue-50 text-blue-700 border border-blue-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
+                >
+                  <span className="text-base sm:text-lg">🔄</span>
+                  <span className="hidden sm:inline">Refresh</span>
+                  <span className="sm:hidden">Refresh</span>
+                </button>
+                <button
+                  onClick={handleLogout}
+                  className="bg-red-50 text-red-700 border border-red-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-red-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
+                >
+                  <span className="text-base sm:text-lg">🚪</span>
+                  <span className="hidden sm:inline">Logout</span>
+                  <span className="sm:hidden">Exit</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -262,40 +277,42 @@ function RedfinListingsPageContent() {
         </div>
 
         {/* Listings Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
           {data.listings.map((listing) => (
             <div
               key={listing.id}
-              className="bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-red-300 transform hover:-translate-y-1"
+              className="bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl sm:hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-red-300 transform hover:-translate-y-0.5 sm:hover:-translate-y-1"
             >
-              <div className="p-6">
+              <div className="p-4 sm:p-5 lg:p-6">
                 {/* Address */}
-                <div className="mb-4">
-                  <h3 className="text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
+                <div className="mb-3 sm:mb-4">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
                     {listing.address || 'Address Not Available'}
                   </h3>
-                  <p className="text-gray-500 text-sm font-medium">{listing.county || 'DuPage County, IL'}</p>
+                  <p className="text-gray-500 text-xs sm:text-sm font-medium">{listing.county || 'DuPage County, IL'}</p>
                 </div>
 
                 {/* Property Type */}
                 {listing.property_type && (
-                  <div className="mb-4">
-                    <span className="inline-block bg-red-100 text-red-700 text-xs font-semibold px-3 py-1 rounded-full">
+                  <div className="mb-3 sm:mb-4">
+                    <span className="inline-block bg-red-100 text-red-700 text-xs font-semibold px-2 sm:px-3 py-1 rounded-full">
                       {listing.property_type}
                     </span>
                   </div>
                 )}
 
                 {/* Buttons */}
-                <div className="flex flex-col gap-3 mt-6">
+                <div className="flex flex-col gap-2 sm:gap-3 mt-4 sm:mt-5 lg:mt-6">
                   {listing.listing_link && (
                     <a
                       href={listing.listing_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-sm"
+                      className="block w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center"
                     >
-                      View on Redfin →
+                      <span className="hidden sm:inline">View on Redfin</span>
+                      <span className="sm:hidden">View Listing</span>
+                      <span className="ml-1 sm:ml-2">→</span>
                     </a>
                   )}
                   {listing.address && listing.address !== 'Address Not Available' && (
@@ -323,9 +340,10 @@ function RedfinListingsPageContent() {
                           window.location.href = `/owner-info?${params.toString()}`
                         }
                       }}
-                      className="w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-sm"
+                      className="w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px]"
                     >
-                      Owner Information
+                      <span className="hidden sm:inline">Owner Information</span>
+                      <span className="sm:hidden">Owner Info</span>
                     </button>
                   )}
                 </div>

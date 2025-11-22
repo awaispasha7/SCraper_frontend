@@ -13,3 +13,4 @@ ADD COLUMN IF NOT EXISTS phones TEXT;
 COMMENT ON COLUMN trulia_listings.emails IS 'Owner email addresses (comma or newline separated)';
 COMMENT ON COLUMN trulia_listings.phones IS 'Owner phone numbers (comma or newline separated)';
 
+

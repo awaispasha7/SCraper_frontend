@@ -19,3 +19,4 @@ SELECT setval('trulia_listings_id_seq', 1, false);
 -- This will set the sequence to the maximum ID + 1
 -- SELECT setval('trulia_listings_id_seq', COALESCE((SELECT MAX(id) FROM trulia_listings), 0) + 1, false);
 
+

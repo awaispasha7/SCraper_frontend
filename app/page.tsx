@@ -228,12 +228,20 @@ export default function Dashboard() {
   const fetchListings = async () => {
     try {
       setLoading(true)
+      
+      // Add timeout for fetch request
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 20000) // 20 second timeout
+      
       const response = await fetch('/api/listings?' + new Date().getTime(), {
         cache: 'no-store',
+        signal: controller.signal,
         headers: {
           'Cache-Control': 'no-cache',
         }
-      }) // Cache busting + no-store
+      })
+      
+      clearTimeout(timeoutId)
       
       if (!response.ok) {
         // If API returns error, still try to show empty state instead of error
@@ -248,8 +256,8 @@ export default function Dashboard() {
         setLoading(false)
         return
       }
-      
-      const result = await response.json()
+    
+    const result = await response.json()
       
       // Ensure result has the expected structure
       if (!result || typeof result !== 'object') {
@@ -911,43 +919,46 @@ export default function Dashboard() {
     <div className="min-h-screen bg-gray-50 w-full overflow-x-hidden">
       {/* Header - Light Professional Design */}
       <header className="bg-white shadow-md border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="bg-gray-50 rounded-lg p-3 shadow-sm border border-gray-200">
-                <img src="/fsbo-default.2328aad2.svg" alt="ForSaleByOwner Logo" className="h-12 w-auto" />
+            <div className="flex items-center gap-3 sm:gap-4 w-full md:w-auto">
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3 shadow-sm border border-gray-200 flex-shrink-0">
+                <img src="/fsbo-default.2328aad2.svg" alt="ForSaleByOwner Logo" className="h-8 sm:h-10 lg:h-12 w-auto" />
               </div>
-              <div>
-                <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-2 tracking-tight">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-1 sm:mb-2 tracking-tight">
                   ForSaleByOwner
-                  <span className="block text-2xl md:text-3xl text-gray-600 font-medium mt-1">Dashboard</span>
+                  <span className="block text-lg sm:text-xl md:text-2xl lg:text-3xl text-gray-600 font-medium mt-0.5 sm:mt-1">Dashboard</span>
                 </h1>
-                <p className="text-gray-600 text-lg">
+                <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
                   Chicago, Illinois Property Listings
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
               {dataChanged && (
-                <div className="bg-green-100 text-green-700 border border-green-300 px-5 py-2.5 rounded-lg shadow-sm font-medium flex items-center gap-2">
+                <div className="bg-green-100 text-green-700 border border-green-300 px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 rounded-lg shadow-sm font-medium flex items-center gap-2 text-sm sm:text-base whitespace-nowrap">
                   <span className="text-sm">✓</span>
-                  Data Updated!
+                  <span className="hidden sm:inline">Data Updated!</span>
+                  <span className="sm:hidden">Updated!</span>
                 </div>
               )}
               <button
                 onClick={handleRefresh}
                 disabled={loading || isSyncing}
-                className="bg-blue-50 text-blue-700 border border-blue-300 px-6 py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 font-medium shadow-sm hover:shadow-md"
+                className="bg-blue-50 text-blue-700 border border-blue-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
               >
-                <span className={`text-lg ${isSyncing ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
-                {isSyncing ? 'Syncing...' : loading ? 'Loading...' : 'Refresh'}
+                <span className={`text-base sm:text-lg ${isSyncing ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
+                <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : loading ? 'Loading...' : 'Refresh'}</span>
+                <span className="sm:hidden">{isSyncing ? 'Sync...' : loading ? 'Load...' : 'Refresh'}</span>
               </button>
               <button
                 onClick={handleLogout}
-                className="bg-red-50 text-red-700 border border-red-300 px-6 py-3 rounded-lg hover:bg-red-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+                className="bg-red-50 text-red-700 border border-red-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-red-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
               >
-                <span className="text-lg">🚪</span>
-                Logout
+                <span className="text-base sm:text-lg">🚪</span>
+                <span className="hidden sm:inline">Logout</span>
+                <span className="sm:hidden">Exit</span>
               </button>
             </div>
           </div>
@@ -1098,7 +1109,7 @@ export default function Dashboard() {
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6 mb-6 sm:mb-8">
             {(() => {
               // Calculate pagination
               const totalPages = Math.ceil(filteredListings.length / listingsPerPage)
@@ -1115,41 +1126,43 @@ export default function Dashboard() {
             return (
             <div
               key={index}
-              className={`bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-300 overflow-hidden border ${isNewListing ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-200 hover:border-blue-300'} transform hover:-translate-y-1`}
+              className={`bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl sm:hover:shadow-2xl transition-all duration-300 overflow-hidden border ${isNewListing ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-200 hover:border-blue-300'} transform hover:-translate-y-0.5 sm:hover:-translate-y-1`}
             >
               {isNewListing && (
-                <div className="bg-green-600 text-white text-xs font-semibold px-4 py-2 text-center shadow-sm">
+                <div className="bg-green-600 text-white text-xs font-semibold px-3 sm:px-4 py-1.5 sm:py-2 text-center shadow-sm">
                   NEW LISTING
                 </div>
               )}
-              <div className="p-6">
+              <div className="p-4 sm:p-5 lg:p-6">
                 {/* Address Section */}
-                <div className="mb-6">
-                  <h3 className="text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
+                <div className="mb-4 sm:mb-5 lg:mb-6">
+                  <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
                     {listing.address && listing.address !== 'null' && listing.address !== 'None' 
                       ? listing.address 
                       : 'Address Not Available'}
                   </h3>
-                  <p className="text-gray-500 text-sm font-medium">Chicago, IL</p>
+                  <p className="text-gray-500 text-xs sm:text-sm font-medium">Chicago, IL</p>
                 </div>
                 
                 {/* Time of Post */}
                 {listing.time_of_post && listing.time_of_post !== 'null' && listing.time_of_post !== 'None' && (
-                  <div className="text-xs text-gray-600 mb-6 text-center bg-gray-50 rounded-lg py-2 px-3 font-medium border border-gray-200">
+                  <div className="text-xs text-gray-600 mb-4 sm:mb-5 lg:mb-6 text-center bg-gray-50 rounded-lg py-1.5 sm:py-2 px-2 sm:px-3 font-medium border border-gray-200">
                     Posted: {listing.time_of_post}
                   </div>
                 )}
 
-                {/* Buttons - More Professional */}
-                <div className="flex flex-col gap-3 mt-6">
+                {/* Buttons - Responsive */}
+                <div className="flex flex-col gap-2 sm:gap-3 mt-4 sm:mt-5 lg:mt-6">
                   {listing.listing_link && (
                     <a
                       href={listing.listing_link}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="block w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-3.5 rounded-lg hover:bg-blue-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-sm"
+                      className="block w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 lg:py-3.5 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center"
                     >
-                      View Listing →
+                      <span className="hidden sm:inline">View Listing</span>
+                      <span className="sm:hidden">View Listing</span>
+                      <span className="ml-1 sm:ml-2">→</span>
                     </a>
                   )}
                   {listing.address && listing.address !== 'null' && listing.address !== 'None' && (
@@ -1175,9 +1188,10 @@ export default function Dashboard() {
                           window.location.href = `/owner-info?${params.toString()}`
                         }
                       }}
-                      className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-3.5 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm"
+                      className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 lg:py-3.5 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px]"
                     >
-                      Owner Information
+                      <span className="hidden sm:inline">Owner Information</span>
+                      <span className="sm:hidden">Owner Info</span>
                     </button>
                   )}
                 </div>
@@ -1209,14 +1223,15 @@ export default function Dashboard() {
           }
           
           return (
-            <div className="flex justify-center items-center gap-2 mt-8 mb-6">
+            <div className="flex justify-center items-center gap-1.5 sm:gap-2 mt-6 sm:mt-8 mb-4 sm:mb-6 flex-wrap">
               {/* Previous Button */}
               <button
                 onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                 disabled={currentPage === 1}
-                className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md"
+                className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px]"
               >
-                ← Prev
+                <span className="hidden sm:inline">← Prev</span>
+                <span className="sm:hidden">←</span>
               </button>
               
               {/* First Page */}
@@ -1224,11 +1239,11 @@ export default function Dashboard() {
                 <>
                   <button
                     onClick={() => setCurrentPage(1)}
-                    className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+                    className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px] min-w-[40px] sm:min-w-[44px]"
                   >
                     1
                   </button>
-                  {startPage > 2 && <span className="text-gray-400 px-2">...</span>}
+                  {startPage > 2 && <span className="text-gray-400 px-1 sm:px-2 text-xs sm:text-sm">...</span>}
                 </>
               )}
               
@@ -1237,10 +1252,10 @@ export default function Dashboard() {
                 <button
                   key={pageNum}
                   onClick={() => setCurrentPage(pageNum)}
-                  className={`px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-sm ${
+                  className={`px-3 sm:px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-sm active:scale-95 min-w-[40px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] text-xs sm:text-sm ${
                     currentPage === pageNum
                       ? 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100'
                   }`}
                 >
                   {pageNum}
@@ -1250,10 +1265,10 @@ export default function Dashboard() {
               {/* Last Page */}
               {endPage < totalPages && (
                 <>
-                  {endPage < totalPages - 1 && <span className="text-gray-400 px-2">...</span>}
+                  {endPage < totalPages - 1 && <span className="text-gray-400 px-1 sm:px-2 text-xs sm:text-sm">...</span>}
                   <button
                     onClick={() => setCurrentPage(totalPages)}
-                    className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+                    className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px] min-w-[40px] sm:min-w-[44px]"
                   >
                     {totalPages}
                   </button>
@@ -1264,9 +1279,10 @@ export default function Dashboard() {
               <button
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                 disabled={currentPage === totalPages}
-                className="bg-white text-gray-700 border border-gray-300 px-4 py-2 rounded-lg hover:bg-gray-50 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md"
+                className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px]"
               >
-                Next →
+                <span className="hidden sm:inline">Next →</span>
+                <span className="sm:hidden">→</span>
               </button>
             </div>
           )

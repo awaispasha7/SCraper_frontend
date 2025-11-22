@@ -27,3 +27,4 @@ SELECT setval('trulia_listings_id_seq', 1, false);
 -- Check current sequence value (should return 1)
 SELECT currval('trulia_listings_id_seq');
 
+

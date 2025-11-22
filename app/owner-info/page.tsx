@@ -57,7 +57,19 @@ function OwnerInfoContent() {
         apiUrl += `&source=${encodeURIComponent(source)}`
       }
       
-      const response = await fetch(apiUrl)
+      // Add cache busting and timeout
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+      
+      const response = await fetch(apiUrl, {
+        signal: controller.signal,
+        cache: 'no-store',
+        headers: {
+          'Cache-Control': 'no-cache',
+        }
+      })
+      
+      clearTimeout(timeoutId)
       
       if (!response.ok) {
         const errorData = await response.json()
@@ -102,7 +114,11 @@ function OwnerInfoContent() {
         console.warn('Partial data available despite error:', data.error)
       }
     } catch (err: any) {
-      setError(err.message)
+      if (err.name === 'AbortError') {
+        setError('Request timed out. Please try again.')
+      } else {
+        setError(err.message || 'Failed to fetch owner information')
+      }
       console.error('Error fetching owner info:', err)
     } finally {
       setLoading(false)
@@ -112,15 +128,20 @@ function OwnerInfoContent() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center w-full overflow-x-hidden">
-        <div className="text-center">
+        <div className="text-center max-w-md px-4">
           <div className="relative">
-            <div className="animate-spin rounded-full h-20 w-20 border-4 border-gray-200 border-t-blue-600 mx-auto mb-6"></div>
+            <div className="animate-spin rounded-full h-16 w-16 sm:h-20 sm:w-20 border-4 border-gray-200 border-t-blue-600 mx-auto mb-6"></div>
             <div className="absolute inset-0 flex items-center justify-center">
-              <div className="h-12 w-12 bg-blue-100 rounded-full animate-pulse"></div>
+              <div className="h-10 w-10 sm:h-12 sm:w-12 bg-blue-100 rounded-full animate-pulse"></div>
             </div>
           </div>
-          <p className="text-gray-900 text-xl font-semibold">Loading owner information...</p>
-          <p className="text-gray-600 text-sm mt-2">Please wait while we fetch the data</p>
+          <p className="text-gray-900 text-lg sm:text-xl font-semibold mb-2">Loading owner information...</p>
+          <p className="text-gray-600 text-sm mt-2">Fetching data from multiple sources</p>
+          <div className="mt-4 flex justify-center gap-1">
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+            <div className="w-2 h-2 bg-blue-600 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+          </div>
         </div>
       </div>
     )
@@ -172,17 +193,17 @@ function OwnerInfoContent() {
     <div className="min-h-screen bg-gray-50 w-full overflow-x-hidden">
       {/* Header - Light Professional Design */}
       <header className="bg-white shadow-md border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-4">
-              <div className="bg-gray-100 rounded-lg p-4 shadow-sm border border-gray-200">
-                <span className="text-4xl">👤</span>
+            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
+              <div className="bg-gray-100 rounded-lg p-2 sm:p-3 lg:p-4 shadow-sm border border-gray-200 flex-shrink-0">
+                <span className="text-2xl sm:text-3xl lg:text-4xl">👤</span>
               </div>
-              <div>
-                <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-2 tracking-tight">
+              <div className="min-w-0 flex-1">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-1 sm:mb-2 tracking-tight">
                   Owner Information
                 </h1>
-                <p className="text-gray-600 text-lg">Property Owner Details</p>
+                <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Property Owner Details</p>
               </div>
             </div>
             <button
@@ -194,10 +215,11 @@ function OwnerInfoContent() {
                   window.history.back()
                 }
               }}
-              className="bg-gray-50 text-gray-700 border border-gray-300 px-6 py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md"
+              className="bg-gray-50 text-gray-700 border border-gray-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base w-full md:w-auto justify-center md:justify-start"
             >
-              <span className="text-lg">←</span>
-              Back to Dashboard
+              <span className="text-base sm:text-lg">←</span>
+              <span className="hidden sm:inline">Back to Dashboard</span>
+              <span className="sm:hidden">Back</span>
             </button>
           </div>
         </div>
@@ -373,4 +395,5 @@ export default function OwnerInfoPage() {
     </Suspense>
   )
 }
+
 
