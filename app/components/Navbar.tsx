@@ -67,20 +67,6 @@ export default function Navbar() {
               Red
             </Link>
             <Link
-              href="/addresses"
-              className={`
-                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
-                transition-all duration-200
-                ${
-                  currentPath === '/addresses'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
-                }
-              `}
-            >
-              Addresses
-            </Link>
-            <Link
               href="/zillow-fsbo"
               className={`
                 px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
@@ -205,21 +191,6 @@ export default function Navbar() {
               `}
             >
               Red
-            </Link>
-
-            <Link
-              href="/addresses"
-              className={`
-                px-4 lg:px-5 xl:px-6 py-2.5 rounded-lg text-sm lg:text-base font-semibold whitespace-nowrap
-                transition-all duration-200
-                ${
-                  currentPath === '/addresses'
-                    ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
-                }
-              `}
-            >
-              Addresses
             </Link>
 
             <Link
