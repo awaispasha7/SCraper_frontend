@@ -18,7 +18,7 @@ interface UnifiedListing {
   mailing_address?: string | null
   emails?: string | null | string[]
   phones?: string | null | string[]
-  source: 'fsbo' | 'trulia' | 'redfin' | 'zillow-fsbo' | 'zillow-frbo' | 'hotpads'
+  source: 'fsbo' | 'trulia' | 'redfin' | 'addresses' | 'zillow-fsbo' | 'zillow-frbo' | 'hotpads'
   scrape_date?: string
   time_of_post?: string | null
   county?: string
@@ -40,6 +40,7 @@ function AllListingsPageContent() {
     fsbo: 1,
     trulia: 1,
     redfin: 1,
+    addresses: 1,
     'zillow-fsbo': 1,
     'zillow-frbo': 1,
     hotpads: 1
@@ -72,20 +73,22 @@ function AllListingsPageContent() {
       setLoading(true)
       setError(null)
 
-      // Fetch from all 6 sources in parallel
-      const [fsboRes, truliaRes, redfinRes, zillowFsboRes, zillowFrboRes, hotpadsRes] = await Promise.all([
+      // Fetch from all 7 sources in parallel
+      const [fsboRes, truliaRes, redfinRes, addressesRes, zillowFsboRes, zillowFrboRes, hotpadsRes] = await Promise.all([
         fetch('/api/listings?' + new Date().getTime(), { cache: 'no-store' }),
         fetch('/api/trulia-listings?' + new Date().getTime(), { cache: 'no-store' }),
         fetch('/api/redfin-listings?' + new Date().getTime(), { cache: 'no-store' }),
+        fetch('/api/addresses?' + new Date().getTime(), { cache: 'no-store' }),
         fetch('/api/zillow-fsbo-listings?' + new Date().getTime(), { cache: 'no-store' }),
         fetch('/api/zillow-frbo-listings?' + new Date().getTime(), { cache: 'no-store' }),
         fetch('/api/hotpads-listings?' + new Date().getTime(), { cache: 'no-store' })
       ])
 
-      const [fsboData, truliaData, redfinData, zillowFsboData, zillowFrboData, hotpadsData] = await Promise.all([
+      const [fsboData, truliaData, redfinData, addressesData, zillowFsboData, zillowFrboData, hotpadsData] = await Promise.all([
         fsboRes.json(),
         truliaRes.json(),
         redfinRes.json(),
+        addressesRes.json(),
         zillowFsboRes.json(),
         zillowFrboRes.json(),
         hotpadsRes.json()
@@ -162,7 +165,29 @@ function AllListingsPageContent() {
         })
       }
 
-      // 4. Zillow FSBO (fourth)
+      // 4. Addresses (fourth)
+      if (addressesData.addresses && Array.isArray(addressesData.addresses)) {
+        addressesData.addresses.forEach((addr: any) => {
+          unifiedListings.push({
+            id: `address-${addr.address || Date.now()}`,
+            address: addr.address || '',
+            price: '', // Addresses don't have prices
+            beds: '', // Addresses don't have beds
+            baths: '', // Addresses don't have baths
+            square_feet: '', // Addresses don't have square feet
+            city: addr.city || '',
+            state: addr.state || '',
+            zip: addr.zip || '',
+            owner_name: addr.ownerName || null,
+            mailing_address: addr.mailingAddress || null,
+            emails: addr.emails || null,
+            phones: addr.phones || null,
+            source: 'addresses'
+          })
+        })
+      }
+
+      // 5. Zillow FSBO (fifth)
       if (zillowFsboData.listings && Array.isArray(zillowFsboData.listings)) {
         zillowFsboData.listings.forEach((listing: any) => {
           unifiedListings.push({
@@ -183,7 +208,7 @@ function AllListingsPageContent() {
         })
       }
 
-      // 5. Zillow FRBO (fifth)
+      // 6. Zillow FRBO (sixth)
       if (zillowFrboData.listings && Array.isArray(zillowFrboData.listings)) {
         zillowFrboData.listings.forEach((listing: any) => {
           unifiedListings.push({
@@ -281,6 +306,8 @@ function AllListingsPageContent() {
         return 'bg-green-100 text-green-700'
       case 'redfin':
         return 'bg-red-100 text-red-700'
+      case 'addresses':
+        return 'bg-purple-100 text-purple-700'
       case 'zillow-fsbo':
         return 'bg-purple-100 text-purple-700'
       case 'zillow-frbo':
@@ -300,6 +327,8 @@ function AllListingsPageContent() {
         return 'Trulia'
       case 'redfin':
         return 'Redfin'
+      case 'addresses':
+        return 'Addresses'
       case 'zillow-fsbo':
         return 'Zillow FSBO'
       case 'zillow-frbo':
@@ -429,7 +458,21 @@ function AllListingsPageContent() {
     let headers: string[]
     let rowData: string[]
     
-    // For all sources, include all fields
+    if (listing.source === 'addresses') {
+      // For addresses, only include relevant fields
+      headers = ['address', 'city', 'state', 'zip', 'owner_name', 'mailing_address', 'emails', 'phones']
+      rowData = [
+        escapeCSV(listing.address),
+        escapeCSV(listing.city),
+        escapeCSV(listing.state),
+        escapeCSV(listing.zip),
+        escapeCSV(listing.owner_name),
+        escapeCSV(listing.mailing_address),
+        escapeCSV(listing.emails),
+        escapeCSV(listing.phones)
+      ]
+    } else {
+      // For other sources, include all fields
       headers = ['source', 'address', 'price', 'beds', 'baths', 'square_feet', 'listing_link', 'property_type', 'owner_name', 'mailing_address', 'emails', 'phones', 'city', 'state', 'zip']
       rowData = [
         escapeCSV(listing.source),
@@ -448,6 +491,7 @@ function AllListingsPageContent() {
         escapeCSV(listing.state),
         escapeCSV(listing.zip)
       ]
+    }
 
     const csvData = [headers.join(','), rowData.join(',')].join('\n')
 
@@ -504,9 +548,27 @@ function AllListingsPageContent() {
   const handleDownloadBySource = (source: string) => {
     const sourceListings = filteredListings.filter(listing => listing.source === source)
     
-    // Prepare CSV data for source listings - include all fields
-    const headers = ['source', 'address', 'price', 'beds', 'baths', 'square_feet', 'listing_link', 'property_type', 'owner_name', 'mailing_address', 'emails', 'phones', 'city', 'state', 'zip']
-    const rows = sourceListings.map(listing => [
+    // Prepare CSV data for source listings - different fields based on source
+    let headers: string[]
+    let rows: string[][]
+    
+    if (source === 'addresses') {
+      // For addresses, only include relevant fields
+      headers = ['address', 'city', 'state', 'zip', 'owner_name', 'mailing_address', 'emails', 'phones']
+      rows = sourceListings.map(listing => [
+        escapeCSV(listing.address),
+        escapeCSV(listing.city),
+        escapeCSV(listing.state),
+        escapeCSV(listing.zip),
+        escapeCSV(listing.owner_name),
+        escapeCSV(listing.mailing_address),
+        escapeCSV(listing.emails, true), // Mark as array field
+        escapeCSV(listing.phones, true) // Mark as array field
+      ])
+    } else {
+      // For other sources, include all fields
+      headers = ['source', 'address', 'price', 'beds', 'baths', 'square_feet', 'listing_link', 'property_type', 'owner_name', 'mailing_address', 'emails', 'phones', 'city', 'state', 'zip']
+      rows = sourceListings.map(listing => [
         escapeCSV(listing.source),
         escapeCSV(listing.address),
         escapeCSV(listing.price),
@@ -523,6 +585,7 @@ function AllListingsPageContent() {
         escapeCSV(listing.state),
         escapeCSV(listing.zip)
       ])
+    }
 
     const csvData = [headers.join(','), ...rows.map(row => row.join(','))].join('\n')
 
@@ -674,6 +737,7 @@ function AllListingsPageContent() {
     fsbo: filteredListings.filter(l => l.source === 'fsbo'),
     trulia: filteredListings.filter(l => l.source === 'trulia'),
     redfin: filteredListings.filter(l => l.source === 'redfin'),
+    addresses: filteredListings.filter(l => l.source === 'addresses'),
     'zillow-fsbo': filteredListings.filter(l => l.source === 'zillow-fsbo'),
     'zillow-frbo': filteredListings.filter(l => l.source === 'zillow-frbo'),
     hotpads: filteredListings.filter(l => l.source === 'hotpads')
@@ -812,7 +876,7 @@ function AllListingsPageContent() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         {/* Listings by Source */}
-        {['fsbo', 'trulia', 'redfin', 'zillow-fsbo', 'zillow-frbo', 'hotpads'].map((source) => {
+        {['fsbo', 'trulia', 'redfin', 'addresses', 'zillow-fsbo', 'zillow-frbo', 'hotpads'].map((source) => {
           const listings = groupedListings[source as keyof typeof groupedListings]
           if (listings.length === 0) return null
 
@@ -869,11 +933,22 @@ function AllListingsPageContent() {
                     <thead className="bg-gray-50">
                       <tr>
                         <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Address</th>
+                        {source === 'addresses' ? (
+                          <>
+                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">City</th>
+                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">State</th>
+                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">ZIP</th>
+                            <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Owner</th>
+                          </>
+                        ) : (
+                          <>
                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Price</th>
                             <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Beds</th>
                             <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Baths</th>
                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Sqft</th>
                             <th className="px-4 py-3 text-left text-xs font-bold text-gray-700 uppercase tracking-wider">Owner</th>
+                          </>
+                        )}
                         <th className="px-4 py-3 text-center text-xs font-bold text-gray-700 uppercase tracking-wider">Actions</th>
                       </tr>
                     </thead>
@@ -888,6 +963,23 @@ function AllListingsPageContent() {
                               {listing.address || 'Address Not Available'}
                             </div>
                           </td>
+                          {source === 'addresses' ? (
+                            <>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                {listing.city || 'N/A'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                {listing.state || 'N/A'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700">
+                                {listing.zip || 'N/A'}
+                              </td>
+                              <td className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate">
+                                {listing.owner_name || 'N/A'}
+                              </td>
+                            </>
+                          ) : (
+                            <>
                               <td className="px-4 py-3 whitespace-nowrap">
                                 <span className="text-sm font-bold text-gray-900">
                                   {listing.price ? formatPrice(listing.price) : 'N/A'}
@@ -905,6 +997,8 @@ function AllListingsPageContent() {
                               <td className="px-4 py-3 text-sm text-gray-700 max-w-xs truncate">
                                 {listing.owner_name || 'N/A'}
                               </td>
+                            </>
+                          )}
                           <td className="px-4 py-3 whitespace-nowrap">
                             <div className="flex items-center justify-center gap-2 flex-wrap">
                               {listing.listing_link && (
@@ -986,6 +1080,27 @@ function AllListingsPageContent() {
                         </h3>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs">
+                        {source === 'addresses' ? (
+                          <>
+                            <div>
+                              <span className="text-gray-500">City:</span>
+                              <span className="ml-1 font-medium text-gray-900">{listing.city || 'N/A'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">State:</span>
+                              <span className="ml-1 font-medium text-gray-900">{listing.state || 'N/A'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">ZIP:</span>
+                              <span className="ml-1 font-medium text-gray-900">{listing.zip || 'N/A'}</span>
+                            </div>
+                            <div>
+                              <span className="text-gray-500">Owner:</span>
+                              <span className="ml-1 font-medium text-gray-900 truncate block">{listing.owner_name || 'N/A'}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <>
                             <div>
                               <span className="text-gray-500">Price:</span>
                               <span className="ml-1 font-bold text-gray-900">{listing.price ? formatPrice(listing.price) : 'N/A'}</span>
@@ -1007,6 +1122,8 @@ function AllListingsPageContent() {
                                 <span className="text-gray-500">Owner:</span>
                                 <span className="ml-1 font-medium text-gray-900 truncate block">{listing.owner_name}</span>
                               </div>
+                            )}
+                          </>
                         )}
                       </div>
                       <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
