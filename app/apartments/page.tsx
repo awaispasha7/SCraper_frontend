@@ -250,13 +250,21 @@ function ApartmentsPageContent() {
       
       const syncResponse = await fetch('/api/apartments-sync', { method: 'POST' })
       
+      const syncResult = await syncResponse.json()
+      
       if (!syncResponse.ok) {
         clearInterval(pollInterval)
-        const errorData = await syncResponse.json()
-        throw new Error(errorData.error || 'Failed to sync listings')
+        // Show detailed error message if available
+        const errorMessage = syncResult.details || syncResult.error || 'Failed to sync listings'
+        throw new Error(errorMessage)
       }
       
-      const syncResult = await syncResponse.json()
+      // Check for warnings (e.g., backend URL not configured)
+      if (syncResult.warning) {
+        console.warn('⚠️ Sync warning:', syncResult.warning)
+        setError(`⚠️ ${syncResult.warning}`)
+      }
+      
       console.log('✅ Sync complete:', syncResult)
       console.log(`✅ Added: ${syncResult.stats?.added || 0} new listings`)
       console.log(`✅ Updated: ${syncResult.stats?.updated || 0} listings`)

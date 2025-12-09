@@ -16,12 +16,19 @@ export async function POST() {
       console.log('📋 Process: Trigger Backend Scraper → Backend stores in Database')
       
       try {
+        // Add timeout to prevent hanging requests
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 30000) // 30 second timeout
+        
         const response = await fetch(`${backendUrl}/api/trigger-apartments`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
+          signal: controller.signal,
         })
+        
+        clearTimeout(timeoutId)
         
         if (!response.ok) {
           const errorText = await response.text()
@@ -63,8 +70,32 @@ export async function POST() {
         })
       } catch (backendError: any) {
         console.error('❌ Backend API failed:', backendError.message)
-        console.warn('⚠️ Falling back to local scraper (if available)')
-        // Fall through to run local scraper or return error
+        
+        // If backend URL is configured but request failed, don't fall back to local scraper
+        // Return error immediately with helpful message
+        if (backendError.name === 'AbortError') {
+          return NextResponse.json(
+            {
+              success: false,
+              error: 'Backend API request timed out',
+              details: 'The backend scraper took too long to respond. Please check backend logs.',
+              timestamp: new Date().toISOString(),
+            },
+            { status: 504 }
+          )
+        }
+        
+        // Check if backend is reachable
+        return NextResponse.json(
+          {
+            success: false,
+            error: 'Backend API request failed',
+            details: `Unable to connect to backend at ${backendUrl}. Please verify NEXT_PUBLIC_BACKEND_URL is correct and backend is running.`,
+            backendError: backendError.message,
+            timestamp: new Date().toISOString(),
+          },
+          { status: 502 }
+        )
       }
     } else {
       console.warn('⚠️ NEXT_PUBLIC_BACKEND_URL not configured. Cannot use backend API.')
