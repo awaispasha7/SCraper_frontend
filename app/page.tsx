@@ -177,7 +177,8 @@ export default function HomePage() {
 
         setTotalListings(total)
         if (latestScrape) {
-          setLastScrapeTime(latestScrape.toLocaleString('en-US', {
+          const scrapeDate = latestScrape as Date
+          setLastScrapeTime(scrapeDate.toLocaleString('en-US', {
             year: 'numeric',
             month: 'short',
             day: 'numeric',
