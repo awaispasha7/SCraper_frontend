@@ -432,19 +432,30 @@ function OwnerInfoContent() {
                 </div>
               </div>
 
-            {/* Additional Info */}
-            {(!ownerInfo?.ownerName || ownerInfo.ownerName === 'null' || ownerInfo.ownerName === 'None') &&
-             (!ownerInfo?.mailingAddress || ownerInfo.mailingAddress === 'null' || ownerInfo.mailingAddress === 'None') && (
-              <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-5 shadow-sm max-w-4xl mx-auto">
-                <div className="flex items-start gap-3">
-                  <span className="text-2xl">ℹ️</span>
-                  <p className="text-sm text-yellow-800 font-medium">
-                    <strong>Note:</strong> Owner information is not available for this property. 
-                    This could be due to privacy restrictions or the property not being found in the database.
-                  </p>
+            {/* Additional Info - Only show warning if ALL information is missing */}
+            {(() => {
+              const hasOwnerName = ownerInfo?.ownerName && ownerInfo.ownerName !== 'null' && ownerInfo.ownerName !== 'None'
+              const hasMailingAddress = ownerInfo?.mailingAddress && ownerInfo.mailingAddress !== 'null' && ownerInfo.mailingAddress !== 'None'
+              const hasEmail = ownerInfo?.email && ownerInfo.email !== 'null' && ownerInfo.email !== 'None'
+              const hasPhone = ownerInfo?.phone && ownerInfo.phone !== 'null' && ownerInfo.phone !== 'None'
+              const hasAllEmails = ownerInfo?.allEmails && ownerInfo.allEmails.length > 0
+              const hasAllPhones = ownerInfo?.allPhones && ownerInfo.allPhones.length > 0
+              
+              // Only show warning if ALL information is missing
+              const allMissing = !hasOwnerName && !hasMailingAddress && !hasEmail && !hasPhone && !hasAllEmails && !hasAllPhones
+              
+              return allMissing ? (
+                <div className="mt-6 bg-yellow-50 border border-yellow-200 rounded-lg p-5 shadow-sm max-w-4xl mx-auto">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">ℹ️</span>
+                    <p className="text-sm text-yellow-800 font-medium">
+                      <strong>Note:</strong> Owner information is not available for this property. 
+                      This could be due to privacy restrictions or the property not being found in the database.
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )}
+              ) : null
+            })()}
 
             {/* Action Buttons */}
             <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">

@@ -318,9 +318,8 @@ export async function GET(request: NextRequest) {
             propertyAddress: listing.address || address,
             source: 'supabase_listings'
           })
-        } else {
-          console.log('⚠️ Listing not found in Supabase listings table')
         }
+        // Note: If not found in listings table, continue to check apartments table (expected behavior)
       } catch (supabaseError) {
         console.warn('⚠️ Error checking Supabase listings table:', supabaseError)
         // Continue to check other sources
@@ -613,6 +612,191 @@ export async function GET(request: NextRequest) {
         } catch (supabaseError) {
           console.warn('⚠️ Error checking Supabase for Zillow FRBO data:', supabaseError)
           // Continue to Atom API fallback
+        }
+      }
+    }
+
+    // Check Supabase for Apartments listings (if source is apartments)
+    if (source === 'apartments') {
+      const dbClient = supabaseAdmin || supabase
+      if (dbClient) {
+        try {
+          console.log('📥 Checking Supabase apartments_frbo_chicago table for owner data...')
+          
+          let apartmentListing: any = null
+          
+          if (listingLink) {
+            // Try to match by listing_url first (most reliable)
+            const { data: linkMatch, error: linkError } = await dbClient
+              .from('apartments_frbo_chicago')
+              .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
+              .eq('listing_url', listingLink)
+              .maybeSingle()
+            
+            if (!linkError && linkMatch) {
+              apartmentListing = linkMatch
+              console.log('   ✅ Found match by listing_url')
+            }
+          }
+          
+          // If no match by listing_link, try by address fields
+          if (!apartmentListing && address) {
+            // Try full_address first
+            const { data: fullAddrMatch, error: fullAddrError } = await dbClient
+              .from('apartments_frbo_chicago')
+              .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
+              .ilike('full_address', `%${address}%`)
+              .maybeSingle()
+            
+            if (!fullAddrError && fullAddrMatch) {
+              apartmentListing = fullAddrMatch
+              console.log('   ✅ Found match by full_address')
+            } else {
+              // Try title
+              const { data: titleMatch, error: titleError } = await dbClient
+                .from('apartments_frbo_chicago')
+                .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
+                .ilike('title', `%${address}%`)
+                .maybeSingle()
+              
+              if (!titleError && titleMatch) {
+                apartmentListing = titleMatch
+                console.log('   ✅ Found match by title')
+              }
+            }
+          }
+          
+          // If still no match, try flexible matching by street number
+          if (!apartmentListing && address && !listingLink) {
+            console.log('   ⚠️ Initial queries failed, trying flexible address matching...')
+            const addressParts = address.split(',').map(p => p.trim())
+            const streetAddress = addressParts[0] || address
+            const streetNumberMatch = streetAddress.match(/^(\d+)/)
+            const streetNumber = streetNumberMatch ? streetNumberMatch[1] : null
+            
+            if (streetNumber) {
+              const { data: flexibleMatch, error: flexibleError } = await dbClient
+                .from('apartments_frbo_chicago')
+                .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
+                .ilike('full_address', `%${streetNumber}%`)
+                .limit(10)
+              
+              if (!flexibleError && flexibleMatch && flexibleMatch.length > 0) {
+                const normalizedSearch = normalizeAddress(address)
+                const bestMatch = flexibleMatch.find((listing: any) => {
+                  const listingAddr = listing.full_address || listing.title || ''
+                  const normalizedListing = normalizeAddress(listingAddr)
+                  return normalizedListing.includes(normalizedSearch) || normalizedSearch.includes(normalizedListing)
+                })
+                if (bestMatch) {
+                  apartmentListing = bestMatch
+                  console.log('   ✅ Found match using flexible address matching')
+                }
+              }
+            }
+          }
+          
+          if (apartmentListing) {
+            console.log('✅ Found Apartment listing in Supabase with owner data')
+            
+            // Parse owner_email - handle JSONB array or string format
+            const parseEmails = (emailData: any): string[] => {
+              const emails: string[] = []
+              
+              if (emailData !== null && emailData !== undefined) {
+                if (Array.isArray(emailData)) {
+                  emails.push(...emailData)
+                } else if (typeof emailData === 'string' && emailData.trim()) {
+                  try {
+                    const parsed = JSON.parse(emailData)
+                    if (Array.isArray(parsed)) {
+                      emails.push(...parsed)
+                    } else {
+                      emails.push(emailData)
+                    }
+                  } catch (e) {
+                    // If not valid JSON, treat as single email or comma-separated
+                    emails.push(...emailData.split(/[,\n]/).map((e: string) => e.trim()).filter((e: string) => e && e.includes('@')))
+                  }
+                }
+              }
+              
+              return emails.filter((e: string) => e && e.includes('@'))
+            }
+            
+            // Parse phone_numbers - handle JSONB array, comma-separated string, or single string
+            const parsePhones = (phoneData: any): string[] => {
+              const phones: string[] = []
+              
+              if (phoneData !== null && phoneData !== undefined) {
+                if (Array.isArray(phoneData)) {
+                  phones.push(...phoneData)
+                } else if (typeof phoneData === 'string' && phoneData.trim()) {
+                  try {
+                    const parsed = JSON.parse(phoneData)
+                    if (Array.isArray(parsed)) {
+                      phones.push(...parsed)
+                    } else {
+                      phones.push(phoneData)
+                    }
+                  } catch (e) {
+                    // If not valid JSON, treat as comma-separated or single phone
+                    phones.push(...phoneData.split(/[,\n]/).map((p: string) => p.trim()).filter((p: string) => p && /[\d-]/.test(p)))
+                  }
+                }
+              }
+              
+              return phones.filter((p: string) => {
+                const trimmed = p.trim()
+                return trimmed && trimmed.length > 0 && trimmed !== 'null' && trimmed !== 'NULL' && /[\d-]/.test(trimmed)
+              })
+            }
+            
+            const allEmails = parseEmails(apartmentListing.owner_email)
+            const allPhones = parsePhones(apartmentListing.phone_numbers)
+            
+            console.log('   📧 Parsed emails:', allEmails)
+            console.log('   📞 Parsed phones:', allPhones)
+            
+            return NextResponse.json({
+              ownerName: apartmentListing.owner_name && apartmentListing.owner_name !== 'null' ? apartmentListing.owner_name : null,
+              mailingAddress: null, // Not available in apartments_frbo_chicago table
+              email: allEmails.length > 0 ? allEmails[0] : null,
+              phone: allPhones.length > 0 ? allPhones[0] : null,
+              allEmails: allEmails,
+              allPhones: allPhones,
+              propertyAddress: apartmentListing.full_address || apartmentListing.title || address,
+              source: 'supabase_apartments'
+            })
+          } else {
+            console.log('⚠️ Apartment listing not found in Supabase')
+            // Return empty result - no fallback to Atom API
+            return NextResponse.json({
+              ownerName: null,
+              mailingAddress: null,
+              email: null,
+              phone: null,
+              allEmails: [],
+              allPhones: [],
+              propertyAddress: address,
+              source: 'supabase_apartments',
+              error: 'Apartment listing not found in Supabase'
+            })
+          }
+        } catch (supabaseError) {
+          console.warn('⚠️ Error checking Supabase for Apartments data:', supabaseError)
+          // Return error response - no fallback to Atom API
+          return NextResponse.json({
+            ownerName: null,
+            mailingAddress: null,
+            email: null,
+            phone: null,
+            allEmails: [],
+            allPhones: [],
+            propertyAddress: address,
+            source: 'supabase_apartments',
+            error: 'Error fetching apartment listing from Supabase'
+          })
         }
       }
     }

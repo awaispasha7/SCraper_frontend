@@ -19,20 +19,20 @@ export default function Navbar() {
     <nav className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
         {/* Mobile Layout - Stacked */}
-        <div className="flex flex-col md:hidden py-3">
-          <div className="flex items-center justify-center mb-3">
-            <h1 className="text-lg font-bold text-gray-900">Dashboard</h1>
+        <div className="flex flex-col md:hidden py-2 sm:py-3">
+          <div className="flex items-center justify-center mb-2 sm:mb-3">
+            <h1 className="text-base sm:text-lg font-bold text-gray-900">Dashboard</h1>
           </div>
-          <div className="flex items-center justify-center gap-2 flex-wrap">
+          <div className="flex items-center justify-center gap-1.5 sm:gap-2 flex-wrap pb-1">
             <Link
               href="/"
               className={`
-                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
-                transition-all duration-200
+                px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap min-h-[36px] sm:min-h-[40px] flex items-center justify-center
+                transition-all duration-200 touch-manipulation
                 ${
                   currentPath === '/'
                     ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50 active:bg-gray-200'
                 }
               `}
             >
@@ -41,12 +41,12 @@ export default function Navbar() {
             <Link
               href="/trulia-listings"
               className={`
-                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
-                transition-all duration-200
+                px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap min-h-[36px] sm:min-h-[40px] flex items-center justify-center
+                transition-all duration-200 touch-manipulation
                 ${
                   currentPath === '/trulia-listings'
                     ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50 active:bg-gray-200'
                 }
               `}
             >
@@ -55,12 +55,12 @@ export default function Navbar() {
             <Link
               href="/redfin-listings"
               className={`
-                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
-                transition-all duration-200
+                px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap min-h-[36px] sm:min-h-[40px] flex items-center justify-center
+                transition-all duration-200 touch-manipulation
                 ${
                   currentPath === '/redfin-listings'
                     ? 'bg-red-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50 active:bg-gray-200'
                 }
               `}
             >
@@ -69,12 +69,12 @@ export default function Navbar() {
             <Link
               href="/zillow-fsbo"
               className={`
-                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
-                transition-all duration-200
+                px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap min-h-[36px] sm:min-h-[40px] flex items-center justify-center
+                transition-all duration-200 touch-manipulation
                 ${
                   currentPath === '/zillow-fsbo'
                     ? 'bg-purple-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50 active:bg-gray-200'
                 }
               `}
             >
@@ -83,12 +83,12 @@ export default function Navbar() {
             <Link
               href="/zillow-frbo"
               className={`
-                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
-                transition-all duration-200
+                px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap min-h-[36px] sm:min-h-[40px] flex items-center justify-center
+                transition-all duration-200 touch-manipulation
                 ${
                   currentPath === '/zillow-frbo'
                     ? 'bg-indigo-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50 active:bg-gray-200'
                 }
               `}
             >
@@ -97,12 +97,12 @@ export default function Navbar() {
             <Link
               href="/hotpads"
               className={`
-                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
-                transition-all duration-200
+                px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap min-h-[36px] sm:min-h-[40px] flex items-center justify-center
+                transition-all duration-200 touch-manipulation
                 ${
                   currentPath === '/hotpads'
                     ? 'bg-teal-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50 active:bg-gray-200'
                 }
               `}
             >
@@ -111,12 +111,12 @@ export default function Navbar() {
             <Link
               href="/apartments"
               className={`
-                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
-                transition-all duration-200
+                px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap min-h-[36px] sm:min-h-[40px] flex items-center justify-center
+                transition-all duration-200 touch-manipulation
                 ${
                   currentPath === '/apartments'
                     ? 'bg-cyan-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50 active:bg-gray-200'
                 }
               `}
             >
@@ -125,12 +125,12 @@ export default function Navbar() {
             <Link
               href="/all-listings"
               className={`
-                px-4 py-2 rounded-lg text-sm font-semibold whitespace-nowrap
-                transition-all duration-200
+                px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-semibold whitespace-nowrap min-h-[36px] sm:min-h-[40px] flex items-center justify-center
+                transition-all duration-200 touch-manipulation
                 ${
                   currentPath === '/all-listings'
                     ? 'bg-blue-600 text-white shadow-md'
-                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50'
+                    : 'text-gray-700 hover:bg-gray-100 bg-gray-50 active:bg-gray-200'
                 }
               `}
             >
@@ -140,7 +140,7 @@ export default function Navbar() {
         </div>
 
         {/* Desktop Layout - Horizontal */}
-        <div className="hidden md:flex items-center h-16 lg:h-18">
+        <div className="hidden md:flex items-center h-16 lg:h-20">
           {/* Logo/Brand */}
           <div className="flex items-center flex-shrink-0">
             <h1 className="text-xl lg:text-2xl xl:text-3xl font-bold text-gray-900">Dashboard</h1>

@@ -55,6 +55,9 @@ function ApartmentsPageContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1) // Current page number
   const listingsPerPage = 20 // Listings per page
+  const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null) // Track when scraper was last run
+  const [syncProgress, setSyncProgress] = useState<string>('') // Progress message during sync
+  const [isSyncing, setIsSyncing] = useState(false) // Track if sync is in progress
 
   const handleLogout = async () => {
     try {
@@ -176,22 +179,162 @@ function ApartmentsPageContent() {
     }
   }, [data])
 
-  const fetchListings = async () => {
+  // Poll for listings while syncing - updates UI in real-time
+  const pollForListings = (interval: number = 3000, maxAttempts: number = 120): ReturnType<typeof setInterval> => {
+    let attempts = 0
+    let lastCount = 0
+    const pollInterval = setInterval(async () => {
+      attempts++
+      try {
+        const response = await fetch('/api/apartments-listings?' + new Date().getTime(), {
+          cache: 'no-store',
+          headers: { 'Cache-Control': 'no-cache' }
+        })
+        if (response.ok) {
+          const result = await response.json()
+          const newCount = result.listings?.length || 0
+          if (newCount !== lastCount) {
+            lastCount = newCount
+            if (newCount > 0) {
+              setSyncProgress(`🔍 Found ${newCount} new leads! List updating...`)
+              // Update data immediately
+              const normalizedResult = {
+                ...result,
+                listings: result.listings.map((listing: any) => ({
+                  ...listing,
+                  price: listing.price !== null && listing.price !== undefined ? String(listing.price) : listing.price,
+                  beds: listing.beds !== null && listing.beds !== undefined ? String(listing.beds) : listing.beds,
+                  baths: listing.baths !== null && listing.baths !== undefined ? String(listing.baths) : listing.baths,
+                  square_feet: listing.square_feet !== null && listing.square_feet !== undefined ? String(listing.square_feet) : listing.square_feet,
+                }))
+              }
+              setData(normalizedResult)
+              if (typeof window !== 'undefined') {
+                try {
+                  sessionStorage.setItem('apartmentsListingsData', JSON.stringify(normalizedResult))
+                } catch (e) {}
+              }
+            } else {
+              setSyncProgress(`🔍 Searching... ${newCount} leads found so far`)
+            }
+          } else {
+            setSyncProgress(`🔍 Found ${newCount} leads! List updating...`)
+          }
+        }
+      } catch (err) {
+        // Silently fail polling
+      }
+      
+      if (attempts >= maxAttempts) {
+        clearInterval(pollInterval)
+      }
+    }, interval)
+    
+    return pollInterval
+  }
+
+  // Handle manual refresh (runs scraper + syncs + fetches)
+  const handleRefresh = async () => {
+    try {
+      setIsSyncing(true)
+      setSyncProgress('🔍 Starting to find new leads...')
+      setError(null)
+      
+      // Start polling for listings immediately - this will update the UI in real-time
+      const pollInterval = pollForListings(3000, 120) // Poll every 3 seconds
+      
+      // Step 1: Run scraper and sync to Supabase
+      console.log('🔄 Step 1: Scraping apartments data from website...')
+      console.log('🔄 Step 2: Storing listings directly in database...')
+      setSyncProgress('🔍 Searching for new leads...')
+      
+      const syncResponse = await fetch('/api/apartments-sync', { method: 'POST' })
+      
+      if (!syncResponse.ok) {
+        clearInterval(pollInterval)
+        const errorData = await syncResponse.json()
+        throw new Error(errorData.error || 'Failed to sync listings')
+      }
+      
+      const syncResult = await syncResponse.json()
+      console.log('✅ Sync complete:', syncResult)
+      console.log(`✅ Added: ${syncResult.stats?.added || 0} new listings`)
+      console.log(`✅ Updated: ${syncResult.stats?.updated || 0} listings`)
+      console.log(`✅ Total in database: ${syncResult.stats?.total || 0} listings`)
+      
+      // Update last refresh time using the timestamp from sync result
+      if (syncResult.timestamp) {
+        setLastRefreshTime(new Date(syncResult.timestamp))
+      } else {
+        setLastRefreshTime(new Date())
+      }
+      
+      // Continue polling for a bit more to catch any final listings
+      setSyncProgress(`✅ Found ${syncResult.stats?.total || 0} leads! Updating list...`)
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      
+      // Stop polling and fetch final data
+      clearInterval(pollInterval)
+      
+      // Step 2: Fetch fresh data from Supabase
+      await fetchListings()
+      
+      // Step 3: Ensure lastRefreshTime reflects the sync timestamp
+      if (syncResult.timestamp) {
+        const syncTimestamp = new Date(syncResult.timestamp)
+        setLastRefreshTime(prev => {
+          if (!prev || syncTimestamp >= prev) {
+            return syncTimestamp
+          }
+          return prev
+        })
+      }
+      
+      setSyncProgress('')
+      setIsSyncing(false)
+      
+    } catch (err: any) {
+      setError(err.message || 'Failed to refresh listings')
+      console.error('Error refreshing listings:', err)
+      setSyncProgress('')
+      setIsSyncing(false)
+      // Still try to fetch existing data even if sync failed
+      await fetchListings()
+    }
+  }
+
+  const fetchListings = async (forceRefresh: boolean = false) => {
     try {
       const hasExistingData = data && data.listings && data.listings.length > 0
-      if (!hasExistingData) {
+      
+      // Always show loading when force refreshing, or when there's no existing data
+      if (forceRefresh || !hasExistingData) {
         setLoading(true)
       }
+      
       setError(null)
+      
+      // Clear sessionStorage cache if forcing refresh
+      if (forceRefresh && typeof window !== 'undefined') {
+        try {
+          sessionStorage.removeItem('apartmentsListingsData')
+        } catch (e) {
+          // Ignore storage errors
+        }
+      }
       
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000)
       
-      const response = await fetch('/api/apartments-listings?' + new Date().getTime(), {
+      // Add timestamp to force fresh fetch
+      const timestamp = new Date().getTime()
+      const response = await fetch(`/api/apartments-listings?t=${timestamp}&_=${Math.random()}`, {
         cache: 'no-store',
         signal: controller.signal,
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
         priority: 'high'
       } as RequestInit)
@@ -199,8 +342,8 @@ function ApartmentsPageContent() {
       clearTimeout(timeoutId)
 
       if (!response.ok) {
-        const errorData = await response.json()
-        if (!hasExistingData) {
+        const errorData = await response.json().catch(() => ({}))
+        if (!hasExistingData || forceRefresh) {
           throw new Error(errorData.error || 'Failed to fetch listings')
         }
         return
@@ -221,6 +364,7 @@ function ApartmentsPageContent() {
       
       setData(normalizedResult)
       
+      // Update sessionStorage with fresh data
       if (typeof window !== 'undefined') {
         try {
           sessionStorage.setItem('apartmentsListingsData', JSON.stringify(normalizedResult))
@@ -377,7 +521,7 @@ function ApartmentsPageContent() {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Data</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
-            onClick={fetchListings}
+            onClick={() => fetchListings(true)}
             className="bg-cyan-50 text-cyan-700 border border-cyan-300 px-8 py-3 rounded-lg hover:bg-cyan-100 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
           >
             Retry
@@ -387,21 +531,35 @@ function ApartmentsPageContent() {
     )
   }
 
-  if (!data || !data.listings || data.listings.length === 0) {
+  if ((!data || !data.listings || data.listings.length === 0) && !isSyncing) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-md p-8 max-w-md text-center border border-gray-200">
           <div className="text-gray-400 text-8xl mb-6">📭</div>
           <h2 className="text-3xl font-bold text-gray-900 mb-4">No Listings Available</h2>
           <p className="text-gray-600 text-lg mb-8">
-            No Apartments listings were found.
+            The database is currently empty. Click the button below to sync data from the website.
           </p>
           <button
-            onClick={fetchListings}
-            className="bg-cyan-50 text-cyan-700 border border-cyan-300 px-8 py-4 rounded-lg hover:bg-cyan-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
+            onClick={handleRefresh}
+            disabled={loading || isSyncing}
+            className="bg-cyan-600 text-white px-8 py-4 rounded-lg hover:bg-cyan-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Refresh
+            {isSyncing || loading ? (
+              <>
+                <span className="animate-spin inline-block mr-2">🔄</span>
+                <span>Syncing Data...</span>
+              </>
+            ) : (
+              <>
+                <span className="mr-2">🔄</span>
+                <span>Sync Data from Website</span>
+              </>
+            )}
           </button>
+          <p className="text-gray-500 text-sm mt-4">
+            This will run the scraper and populate the database with current listings.
+          </p>
         </div>
       </div>
     )
@@ -427,12 +585,22 @@ function ApartmentsPageContent() {
               </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-1 md:flex-initial">
                 <button
-                  onClick={fetchListings}
-                  className="bg-cyan-50 text-cyan-700 border border-cyan-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-cyan-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
+                  onClick={handleRefresh}
+                  disabled={loading || isSyncing}
+                  className="bg-cyan-600 text-white border border-cyan-600 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-cyan-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <span className="text-base sm:text-lg">🔄</span>
-                  <span className="hidden sm:inline">Refresh</span>
-                  <span className="sm:hidden">Refresh</span>
+                  <span className={`text-base sm:text-lg ${isSyncing ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
+                  <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : loading ? 'Loading...' : 'Sync Data'}</span>
+                  <span className="sm:hidden">{isSyncing ? 'Sync...' : loading ? 'Load...' : 'Sync'}</span>
+                </button>
+                <button
+                  onClick={() => fetchListings(true)}
+                  disabled={loading || isSyncing}
+                  className="bg-cyan-50 text-cyan-700 border border-cyan-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-cyan-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <span className={`text-base sm:text-lg ${loading ? 'animate-spin' : ''}`}>🔄</span>
+                  <span className="hidden sm:inline">{loading ? 'Refreshing...' : 'Refresh'}</span>
+                  <span className="sm:hidden">{loading ? 'Ref...' : 'Refresh'}</span>
                 </button>
                 <button
                   onClick={handleLogout}
@@ -446,6 +614,18 @@ function ApartmentsPageContent() {
           </div>
         </div>
       </header>
+
+      {/* Sync Progress Banner */}
+      {isSyncing && syncProgress && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 -mt-2">
+          <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-lg p-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl animate-spin">🔄</span>
+              <p className="text-cyan-900 font-semibold text-lg">{syncProgress}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 -mt-2">
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
@@ -511,9 +691,20 @@ function ApartmentsPageContent() {
             >
               <div className="p-4 sm:p-5 lg:p-6">
                 <div className="mb-3 sm:mb-4">
+                  {/* Show title if available */}
+                  {listing.title && (
+                    <h2 className="text-sm sm:text-base font-semibold text-cyan-700 mb-1 line-clamp-1">
+                      {listing.title}
+                    </h2>
+                  )}
+                  {/* Show address - prioritize full_address, then address, then street */}
                   <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
-                    {listing.address || 'Address Not Available'}
+                    {listing.full_address || listing.address || listing.street || 'Address Not Available'}
                   </h3>
+                  {/* Show street separately if it's different from the main address */}
+                  {listing.street && listing.street !== listing.full_address && listing.street !== listing.address && (
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium mt-1">{listing.street}</p>
+                  )}
                   {listing.neighborhood && (
                     <p className="text-gray-500 text-xs sm:text-sm font-medium mt-1">{listing.neighborhood}</p>
                   )}
@@ -559,14 +750,6 @@ function ApartmentsPageContent() {
                     </div>
                   </div>
                 </div>
-
-                {listing.description && (
-                  <div className="mb-3 sm:mb-4">
-                    <p className="text-xs sm:text-sm text-gray-600 line-clamp-3">
-                      {listing.description}
-                    </p>
-                  </div>
-                )}
 
                 <div className="flex flex-col gap-2 sm:gap-3 mt-4 sm:mt-5 lg:mt-6">
                   {listing.listing_link && (

@@ -50,6 +50,8 @@ function ZillowFSBOPageContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
+  const [currentPage, setCurrentPage] = useState(1) // Current page number
+  const listingsPerPage = 20 // Listings per page
 
   const handleLogout = async () => {
     try {
@@ -422,7 +424,10 @@ function ZillowFSBOPageContent() {
                   id="search"
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    setCurrentPage(1) // Reset to first page on search
+                  }}
                   placeholder="Search"
                   className="w-full pl-12 pr-4 py-3.5 rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-gray-800 placeholder-gray-400 bg-white focus:bg-white font-medium"
                 />
@@ -430,7 +435,10 @@ function ZillowFSBOPageContent() {
             </div>
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('')
+                  setCurrentPage(1) // Reset to first page when clearing search
+                }}
                 className="px-6 py-3.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-sm mt-6 md:mt-0 shadow-sm hover:shadow-md"
               >
                 Clear Search
@@ -452,7 +460,14 @@ function ZillowFSBOPageContent() {
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
-          {filteredListings.map((listing) => (
+          {(() => {
+            // Calculate pagination
+            const totalPages = Math.ceil(filteredListings.length / listingsPerPage)
+            const startIndex = (currentPage - 1) * listingsPerPage
+            const endIndex = startIndex + listingsPerPage
+            const currentListings = filteredListings.slice(startIndex, endIndex)
+            
+            return currentListings.map((listing) => (
             <div
               key={listing.id}
               className="bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl sm:hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-blue-300 transform hover:-translate-y-0.5 sm:hover:-translate-y-1"
@@ -570,13 +585,116 @@ function ZillowFSBOPageContent() {
                 </div>
               </div>
             </div>
-          ))}
+            ))
+          })()}
         </div>
 
+        {/* Pagination */}
+        {(() => {
+          const totalPages = Math.ceil(filteredListings.length / listingsPerPage)
+          if (totalPages <= 1) return null
+          
+          // Calculate page numbers to show
+          const maxPagesToShow = 7
+          let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2))
+          let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1)
+          if (endPage - startPage < maxPagesToShow - 1) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1)
+          }
+          
+          const pageNumbers = []
+          for (let i = startPage; i <= endPage; i++) {
+            pageNumbers.push(i)
+          }
+          
+          return (
+            <div className="flex justify-center items-center gap-1.5 sm:gap-2 mt-6 sm:mt-8 mb-4 sm:mb-6 flex-wrap">
+              {/* Previous Button */}
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px]"
+              >
+                <span className="hidden sm:inline">← Prev</span>
+                <span className="sm:hidden">←</span>
+              </button>
+              
+              {/* First Page */}
+              {startPage > 1 && (
+                <>
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px] min-w-[40px] sm:min-w-[44px]"
+                  >
+                    1
+                  </button>
+                  {startPage > 2 && <span className="text-gray-400 px-1 sm:px-2 text-xs sm:text-sm">...</span>}
+                </>
+              )}
+              
+              {/* Page Numbers */}
+              {pageNumbers.map(pageNum => (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`px-3 sm:px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-sm active:scale-95 min-w-[40px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] text-xs sm:text-sm ${
+                    currentPage === pageNum
+                      ? 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+              
+              {/* Last Page */}
+              {endPage < totalPages && (
+                <>
+                  {endPage < totalPages - 1 && <span className="text-gray-400 px-1 sm:px-2 text-xs sm:text-sm">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px] min-w-[40px] sm:min-w-[44px]"
+                  >
+                    {totalPages}
+                  </button>
+                </>
+              )}
+              
+              {/* Next Button */}
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px]"
+              >
+                <span className="hidden sm:inline">Next →</span>
+                <span className="sm:hidden">→</span>
+              </button>
+            </div>
+          )
+        })()}
+
+        {/* Display Info */}
         <div className="mt-8 mb-6 text-center">
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 max-w-2xl mx-auto">
-            <p className="text-lg font-bold text-gray-800">
-              Showing <span className="text-blue-600 text-2xl">{data.total_listings}</span> listings
+            <p className="text-xl font-bold text-gray-800 mb-4">
+              Showing <span className="text-blue-600 text-2xl">
+                {(() => {
+                  const startIndex = (currentPage - 1) * listingsPerPage
+                  const endIndex = Math.min(startIndex + listingsPerPage, filteredListings.length)
+                  return startIndex + 1 === endIndex ? endIndex : `${startIndex + 1}-${endIndex}`
+                })()}
+              </span> of{' '}
+              <span className="text-blue-600 text-2xl">{filteredListings.length}</span> {searchQuery ? 'filtered' : ''} listings
+              {searchQuery && data?.listings && (
+                <span className="text-gray-500 text-base font-normal ml-2">
+                  (out of {data.listings.length} total)
+                </span>
+              )}
+              {filteredListings.length > listingsPerPage && (
+                <span className="text-gray-500 text-base font-normal ml-2">
+                  (Page {currentPage} of {Math.ceil(filteredListings.length / listingsPerPage)})
+                </span>
+              )}
             </p>
             <p className="text-sm text-gray-600 mt-2">
               Data scraped on {data.scrape_date || 'N/A'}
