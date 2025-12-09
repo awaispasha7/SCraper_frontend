@@ -24,22 +24,51 @@ export async function POST() {
         })
         
         if (!response.ok) {
-          throw new Error(`Backend API returned ${response.status}`)
+          const errorText = await response.text()
+          throw new Error(`Backend API returned ${response.status}: ${errorText}`)
         }
         
         const result = await response.json()
         console.log('✅ Backend apartments scraper triggered:', result)
         
+        // Get current count from Supabase to return in stats
+        let totalCount = 0
+        try {
+          const { supabase } = await import('@/lib/supabase')
+          if (supabase) {
+            const { count, error: countError } = await supabase
+              .from('apartments_frbo_chicago')
+              .select('*', { count: 'exact', head: true })
+            
+            totalCount = countError ? 0 : (count || 0)
+          }
+        } catch (supabaseError: any) {
+          console.warn('⚠️ Error getting count from Supabase:', supabaseError.message)
+        }
+        
         return NextResponse.json({
           success: true,
-          message: 'Backend apartments scraper triggered successfully',
+          message: 'Backend apartments scraper triggered successfully. Scraper is running in the background.',
           backendResponse: result,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          stats: {
+            scraped: 0, // Scraper is running, count will update as it progresses
+            added: 0,
+            updated: 0,
+            removed: 0,
+            unchanged: totalCount,
+            total: totalCount,
+            duration_seconds: 0
+          }
         })
       } catch (backendError: any) {
-        console.warn('⚠️ Backend API failed, running local scraper:', backendError.message)
-        // Fall through to run local scraper
+        console.error('❌ Backend API failed:', backendError.message)
+        console.warn('⚠️ Falling back to local scraper (if available)')
+        // Fall through to run local scraper or return error
       }
+    } else {
+      console.warn('⚠️ NEXT_PUBLIC_BACKEND_URL not configured. Cannot use backend API.')
+      console.warn('💡 Set NEXT_PUBLIC_BACKEND_URL environment variable to use backend scraper.')
     }
     
     // Run the scraper locally
@@ -69,13 +98,19 @@ export async function POST() {
       try {
         const { supabase } = await import('@/lib/supabase')
         if (supabase) {
-          const { data: listings, error: countError } = await supabase
+          const { count, error: countError } = await supabase
             .from('apartments_frbo_chicago')
-            .select('id', { count: 'exact', head: true })
+            .select('*', { count: 'exact', head: true })
           
-          const totalCount = countError ? 0 : (listings as any)?.length || 0
+          const totalCount = countError ? 0 : (count || 0)
           
           console.log(`⚠️ Scraper failed, but found ${totalCount} existing listings in Supabase`)
+          
+          // Provide helpful error message
+          let errorMessage = scraperError.message
+          if (scraperError.message.includes('Scraper directory not found')) {
+            errorMessage = 'Local scraper not available in deployment. Please configure NEXT_PUBLIC_BACKEND_URL to use backend scraper.'
+          }
           
           return NextResponse.json({
             success: true,
@@ -90,7 +125,7 @@ export async function POST() {
               total: totalCount,
               duration_seconds: 0
             },
-            warning: scraperError.message
+            warning: errorMessage
           })
         }
       } catch (supabaseError: any) {
@@ -98,10 +133,15 @@ export async function POST() {
       }
       
       // Return error if both scraper and Supabase check failed
+      let errorMessage = scraperError.message
+      if (scraperError.message.includes('Scraper directory not found')) {
+        errorMessage = 'Local scraper not available. Please configure NEXT_PUBLIC_BACKEND_URL environment variable to use the backend scraper.'
+      }
+      
       return NextResponse.json(
         { 
           error: 'Failed to sync apartments listings',
-          details: scraperError.message 
+          details: errorMessage 
         },
         { status: 500 }
       )
