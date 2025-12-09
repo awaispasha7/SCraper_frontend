@@ -28,6 +28,7 @@ interface UnifiedListing {
   city?: string
   state?: string
   zip?: string
+  neighborhood?: string | null
 }
 
 function AllListingsPageContent() {
