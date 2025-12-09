@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
 import { createClient } from '@/lib/supabase-client'
 
@@ -117,31 +118,31 @@ function ZillowFRBOPageContent() {
         window.history.scrollRestoration = 'manual'
       }
     }
-    
-    const returningFromOwnerInfo = typeof window !== 'undefined' && 
+
+    const returningFromOwnerInfo = typeof window !== 'undefined' &&
       (sessionStorage.getItem('returningFromOwnerInfo') || sessionStorage.getItem('preventScrollRestore'))
-    
+
     if (returningFromOwnerInfo && data && data.listings && data.listings.length > 0) {
       setLoading(false)
       return
     }
-    
+
     if (!data || !data.listings || data.listings.length === 0) {
       fetchListings()
     } else if (!returningFromOwnerInfo) {
       fetchListings()
     }
   }, [])
-  
+
   useEffect(() => {
     if (!data || !data.listings || data.listings.length === 0) return
-    
+
     if (typeof window !== 'undefined') {
       const savedScrollPosition = sessionStorage.getItem('listingScrollPosition')
       const returningFromOwnerInfo = sessionStorage.getItem('returningFromOwnerInfo')
       const preventScrollRestore = sessionStorage.getItem('preventScrollRestore')
       const sourcePage = sessionStorage.getItem('sourcePage')
-      
+
       if (savedScrollPosition && (returningFromOwnerInfo || preventScrollRestore) && sourcePage === 'zillow-frbo') {
         const scrollPos = parseInt(savedScrollPosition, 10)
         const restoreScroll = () => {
@@ -168,10 +169,10 @@ function ZillowFRBOPageContent() {
         setLoading(true)
       }
       setError(null)
-      
+
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000)
-      
+
       const response = await fetch('/api/zillow-frbo-listings?' + new Date().getTime(), {
         cache: 'no-store',
         signal: controller.signal,
@@ -180,7 +181,7 @@ function ZillowFRBOPageContent() {
         },
         priority: 'high'
       } as RequestInit)
-      
+
       clearTimeout(timeoutId)
 
       if (!response.ok) {
@@ -192,7 +193,7 @@ function ZillowFRBOPageContent() {
       }
 
       const result = await response.json()
-      
+
       const normalizedResult = {
         ...result,
         listings: result.listings.map((listing: any) => ({
@@ -203,9 +204,9 @@ function ZillowFRBOPageContent() {
           square_feet: listing.square_feet !== null && listing.square_feet !== undefined ? String(listing.square_feet) : listing.square_feet,
         }))
       }
-      
+
       setData(normalizedResult)
-      
+
       if (typeof window !== 'undefined') {
         try {
           sessionStorage.setItem('zillowFRBOListingsData', JSON.stringify(normalizedResult))
@@ -364,13 +365,22 @@ function ZillowFRBOPageContent() {
       <header className="bg-white shadow-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex-1 min-w-0">
-              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-1 sm:mb-2 tracking-tight">
-                Zillow FRBO Listings
-              </h1>
-              <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
-                For Rent By Owner Property Listings
-              </p>
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+              <Image
+                src="/Zillow.jpg"
+                alt="Zillow Logo"
+                width={60}
+                height={60}
+                className="rounded-lg shadow-md w-10 h-10 sm:w-[60px] sm:h-[60px]"
+              />
+              <div>
+                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-1 sm:mb-2 tracking-tight">
+                  Zillow FRBO Listings
+                </h1>
+                <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
+                  For Rent By Owner Property Listings
+                </p>
+              </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4 w-full md:w-auto">
               <div className="bg-blue-50 rounded-lg px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 border border-blue-200 flex-shrink-0">
@@ -380,18 +390,16 @@ function ZillowFRBOPageContent() {
               <div className="flex items-center gap-2 sm:gap-3 flex-1 md:flex-initial">
                 <button
                   onClick={fetchListings}
-                  className="bg-blue-50 text-blue-700 border border-blue-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
+                  className="bg-blue-50 text-blue-700 border border-blue-300 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial min-h-[44px]"
                 >
                   <span className="text-base sm:text-lg">🔄</span>
-                  <span className="hidden sm:inline">Refresh</span>
-                  <span className="sm:hidden">Refresh</span>
+                  <span>Refresh</span>
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="bg-gray-50 text-gray-700 border border-gray-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
+                  className="bg-gray-50 text-gray-700 border border-gray-300 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial min-h-[44px]"
                 >
-                  <span className="hidden sm:inline">Logout</span>
-                  <span className="sm:hidden">Logout</span>
+                  <span>Logout</span>
                 </button>
               </div>
             </div>
@@ -458,125 +466,125 @@ function ZillowFRBOPageContent() {
             const startIndex = (currentPage - 1) * listingsPerPage
             const endIndex = startIndex + listingsPerPage
             const currentListings = filteredListings.slice(startIndex, endIndex)
-            
+
             return currentListings.map((listing) => (
-            <div
-              key={listing.id}
-              className="bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl sm:hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-blue-300 transform hover:-translate-y-0.5 sm:hover:-translate-y-1"
-            >
-              <div className="p-4 sm:p-5 lg:p-6">
-                <div className="mb-3 sm:mb-4">
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
-                    {listing.address || 'Address Not Available'}
-                  </h3>
-                </div>
-
-                {listing.property_type && (
+              <div
+                key={listing.id}
+                className="bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl sm:hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-blue-300 transform hover:-translate-y-0.5 sm:hover:-translate-y-1"
+              >
+                <div className="p-4 sm:p-5 lg:p-6">
                   <div className="mb-3 sm:mb-4">
-                    <span className="inline-block bg-gray-100 text-gray-700 text-xs font-semibold px-2 sm:px-3 py-1 rounded-full">
-                      {listing.property_type}
-                    </span>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
+                      {listing.address || 'Address Not Available'}
+                    </h3>
                   </div>
-                )}
 
-                <div className="mb-3 sm:mb-4 grid grid-cols-2 gap-2 sm:gap-3">
-                  <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Price</div>
-                    <div className="text-sm sm:text-base font-bold text-gray-900">
-                      {formatPrice(listing.price)}
+                  {listing.property_type && (
+                    <div className="mb-3 sm:mb-4">
+                      <span className="inline-block bg-gray-100 text-gray-700 text-xs font-semibold px-2 sm:px-3 py-1 rounded-full">
+                        {listing.property_type}
+                      </span>
                     </div>
-                  </div>
-                  
-                  <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Beds</div>
-                    <div className="text-sm sm:text-base font-bold text-gray-900">
-                      {formatNumber(listing.beds)}
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Baths</div>
-                    <div className="text-sm sm:text-base font-bold text-gray-900">
-                      {formatNumber(listing.baths)}
-                    </div>
-                  </div>
-                  
-                  {listing.year_built && (
+                  )}
+
+                  <div className="mb-3 sm:mb-4 grid grid-cols-2 gap-2 sm:gap-3">
                     <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
-                      <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Year</div>
+                      <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Price</div>
                       <div className="text-sm sm:text-base font-bold text-gray-900">
-                        {formatNumber(listing.year_built)}
+                        {formatPrice(listing.price)}
                       </div>
                     </div>
-                  )}
-                </div>
 
-                <div className="flex flex-col gap-2 sm:gap-3 mt-4 sm:mt-5 lg:mt-6">
-                  {listing.listing_link && (
-                    <a
-                      href={listing.listing_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center focus:outline-none focus:ring-0"
-                    >
-                      <span className="hidden sm:inline">View on Zillow</span>
-                      <span className="sm:hidden">View Listing</span>
-                      <span className="ml-1 sm:ml-2">→</span>
-                    </a>
-                  )}
-                  {(listing.address || listing.listing_link) && (
+                    <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
+                      <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Beds</div>
+                      <div className="text-sm sm:text-base font-bold text-gray-900">
+                        {formatNumber(listing.beds)}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
+                      <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Baths</div>
+                      <div className="text-sm sm:text-base font-bold text-gray-900">
+                        {formatNumber(listing.baths)}
+                      </div>
+                    </div>
+
+                    {listing.year_built && (
+                      <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
+                        <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Year</div>
+                        <div className="text-sm sm:text-base font-bold text-gray-900">
+                          {formatNumber(listing.year_built)}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex flex-col gap-2 sm:gap-3 mt-4 sm:mt-5 lg:mt-6">
+                    {listing.listing_link && (
+                      <a
+                        href={listing.listing_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full bg-blue-50 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-blue-100 active:bg-blue-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center focus:outline-none focus:ring-0"
+                      >
+                        <span className="hidden sm:inline">View on Zillow</span>
+                        <span className="sm:hidden">View Listing</span>
+                        <span className="ml-1 sm:ml-2">→</span>
+                      </a>
+                    )}
+                    {(listing.address || listing.listing_link) && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (typeof window !== 'undefined') {
+                            const scrollY = window.scrollY
+                            sessionStorage.setItem('listingScrollPosition', scrollY.toString())
+                            sessionStorage.setItem('listingAddress', listing.address || '')
+                            sessionStorage.setItem('preventScrollRestore', 'true')
+                            sessionStorage.setItem('sourcePage', 'zillow-frbo')
+                            const params = new URLSearchParams({
+                              address: listing.address || '',
+                              source: 'zillow-frbo'
+                            })
+                            if (listing.listing_link) {
+                              params.append('listing_link', listing.listing_link)
+                            }
+                            window.location.href = `/owner-info?${params.toString()}`
+                          }
+                        }}
+                        className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] focus:outline-none focus:ring-0"
+                      >
+                        <span className="hidden sm:inline">Owner Information</span>
+                        <span className="sm:hidden">Owner Info</span>
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.preventDefault()
-                        if (typeof window !== 'undefined') {
-                          const scrollY = window.scrollY
-                          sessionStorage.setItem('listingScrollPosition', scrollY.toString())
-                          sessionStorage.setItem('listingAddress', listing.address || '')
-                          sessionStorage.setItem('preventScrollRestore', 'true')
-                          sessionStorage.setItem('sourcePage', 'zillow-frbo')
-                          const params = new URLSearchParams({
-                            address: listing.address || '',
-                            source: 'zillow-frbo'
-                          })
-                          if (listing.listing_link) {
-                            params.append('listing_link', listing.listing_link)
-                          }
-                          window.location.href = `/owner-info?${params.toString()}`
-                        }
+                        handleDownload(listing)
                       }}
-                      className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] focus:outline-none focus:ring-0"
+                      className="w-full bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 rounded-lg hover:from-blue-100 hover:to-blue-200 active:from-blue-200 active:to-blue-300 transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98]"
                     >
-                      <span className="hidden sm:inline">Owner Information</span>
-                      <span className="sm:hidden">Owner Info</span>
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                        />
+                      </svg>
+                      <span className="hidden sm:inline">Download Details</span>
+                      <span className="sm:hidden">Download</span>
                     </button>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault()
-                      handleDownload(listing)
-                    }}
-                    className="w-full bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 rounded-lg hover:from-blue-100 hover:to-blue-200 active:from-blue-200 active:to-blue-300 transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <svg 
-                      className="w-4 h-4 sm:w-5 sm:h-5" 
-                      fill="none" 
-                      stroke="currentColor" 
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2.5} 
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" 
-                      />
-                    </svg>
-                    <span className="hidden sm:inline">Download Details</span>
-                    <span className="sm:hidden">Download</span>
-                  </button>
+                  </div>
                 </div>
               </div>
-            </div>
             ))
           })()}
         </div>
@@ -585,7 +593,7 @@ function ZillowFRBOPageContent() {
         {(() => {
           const totalPages = Math.ceil(filteredListings.length / listingsPerPage)
           if (totalPages <= 1) return null
-          
+
           // Calculate page numbers to show
           const maxPagesToShow = 7
           let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2))
@@ -593,12 +601,12 @@ function ZillowFRBOPageContent() {
           if (endPage - startPage < maxPagesToShow - 1) {
             startPage = Math.max(1, endPage - maxPagesToShow + 1)
           }
-          
+
           const pageNumbers = []
           for (let i = startPage; i <= endPage; i++) {
             pageNumbers.push(i)
           }
-          
+
           return (
             <div className="flex justify-center items-center gap-1.5 sm:gap-2 mt-6 sm:mt-8 mb-4 sm:mb-6 flex-wrap">
               {/* Previous Button */}
@@ -610,7 +618,7 @@ function ZillowFRBOPageContent() {
                 <span className="hidden sm:inline">← Prev</span>
                 <span className="sm:hidden">←</span>
               </button>
-              
+
               {/* First Page */}
               {startPage > 1 && (
                 <>
@@ -623,22 +631,21 @@ function ZillowFRBOPageContent() {
                   {startPage > 2 && <span className="text-gray-400 px-1 sm:px-2 text-xs sm:text-sm">...</span>}
                 </>
               )}
-              
+
               {/* Page Numbers */}
               {pageNumbers.map(pageNum => (
                 <button
                   key={pageNum}
                   onClick={() => setCurrentPage(pageNum)}
-                  className={`px-3 sm:px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-sm active:scale-95 min-w-[40px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] text-xs sm:text-sm ${
-                    currentPage === pageNum
-                      ? 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100'
-                  }`}
+                  className={`px-3 sm:px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-sm active:scale-95 min-w-[40px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] text-xs sm:text-sm ${currentPage === pageNum
+                    ? 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100'
+                    }`}
                 >
                   {pageNum}
                 </button>
               ))}
-              
+
               {/* Last Page */}
               {endPage < totalPages && (
                 <>
@@ -651,7 +658,7 @@ function ZillowFRBOPageContent() {
                   </button>
                 </>
               )}
-              
+
               {/* Next Button */}
               <button
                 onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}

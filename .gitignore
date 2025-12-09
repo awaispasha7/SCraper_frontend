@@ -40,7 +40,11 @@ next-env.d.ts
 package-lock.json
 yarn.lock
 
+# Data files - scraped data should not be committed
+*.csv
+*.xlsx
 
-
-
+# IDE files
+.idea/
+.vscode/
 

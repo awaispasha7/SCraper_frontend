@@ -7,8 +7,10 @@ import AuthGuard from './AuthGuard'
 export default function ConditionalLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const isLoginPage = pathname === '/login'
+  const isHomePage = pathname === '/'
 
-  if (isLoginPage) {
+  // No navbar on login or home page
+  if (isLoginPage || isHomePage) {
     return <>{children}</>
   }
 
@@ -17,7 +19,7 @@ export default function ConditionalLayout({ children }: { children: React.ReactN
       <div className="min-h-screen bg-gray-50">
         <Navbar />
         <main className="w-full">
-        {children}
+          {children}
         </main>
       </div>
     </AuthGuard>
