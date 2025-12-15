@@ -14,6 +14,8 @@ export async function GET() {
         const { data: listings, error } = await dbClient
           .from('zillow_fsbo_listings')
           .select('*')
+          // Removed strict filter to allow all scraped data to show
+          // .or('address.ilike.%, IL%,address.ilike.% Illinois%,address.ilike.%Chicago%')
           .order('id', { ascending: true })
 
         if (!error && listings && listings.length > 0) {
@@ -24,7 +26,7 @@ export async function GET() {
             const convertToString = (val: any): string => {
               return val !== null && val !== undefined ? String(val) : ''
             }
-            
+
             return {
               id: listing.id,
               address: listing.address || 'Address Not Available',

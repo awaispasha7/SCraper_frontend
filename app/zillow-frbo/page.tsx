@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
+import ScraperRunButton from '@/app/components/ScraperRunButton'
 import { createClient } from '@/lib/supabase-client'
 
 interface ZillowFRBOListing {
@@ -361,7 +362,7 @@ function ZillowFRBOPageContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50 overflow-x-hidden">
       <header className="bg-white shadow-md border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -382,24 +383,34 @@ function ZillowFRBOPageContent() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4 w-full md:w-auto">
-              <div className="bg-blue-50 rounded-lg px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 border border-blue-200 flex-shrink-0">
-                <div className="text-2xl sm:text-3xl font-bold text-blue-700">{data.total_listings}</div>
-                <div className="text-xs sm:text-sm text-blue-600 font-medium">Total Listings</div>
+            <div className="flex flex-wrap md:flex-nowrap items-center gap-2 sm:gap-3 lg:gap-4 w-full md:w-auto mt-4 md:mt-0">
+              <div className="bg-blue-50 rounded-lg px-3 sm:px-5 py-2 sm:py-3 border border-blue-200 flex-shrink-0 flex items-center gap-2 md:block">
+                <span className="text-xl sm:text-3xl font-bold text-blue-700">{data.total_listings}</span>
+                <span className="text-xs sm:text-sm text-blue-600 font-medium md:block">Listings</span>
               </div>
-              <div className="flex items-center gap-2 sm:gap-3 flex-1 md:flex-initial">
+
+              <div className="flex flex-wrap items-center gap-2 flex-1">
+                <ScraperRunButton
+                  scraperId="zillow_frbo"
+                  scraperName="Zillow FRBO"
+                  endpoint="/api/trigger-zillow-frbo"
+                  color="indigo"
+                />
+
                 <button
                   onClick={fetchListings}
-                  className="bg-blue-50 text-blue-700 border border-blue-300 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial min-h-[44px]"
+                  className="bg-blue-50 text-blue-700 border border-blue-300 px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center justify-center gap-1.5 font-medium shadow-sm hover:shadow-md text-sm min-h-[44px]"
+                  title="Refresh List"
                 >
                   <span className="text-base sm:text-lg">🔄</span>
-                  <span>Refresh</span>
+                  <span className="hidden sm:inline">Refresh</span>
                 </button>
+
                 <button
                   onClick={handleLogout}
-                  className="bg-gray-50 text-gray-700 border border-gray-300 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial min-h-[44px]"
+                  className="bg-gray-50 text-gray-700 border border-gray-300 px-3 sm:px-5 py-2 sm:py-2.5 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center justify-center font-medium shadow-sm hover:shadow-md text-sm min-h-[44px]"
                 >
-                  <span>Logout</span>
+                  Logout
                 </button>
               </div>
             </div>

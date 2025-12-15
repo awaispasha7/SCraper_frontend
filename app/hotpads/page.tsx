@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
+import ScraperRunButton from '@/app/components/ScraperRunButton'
 import { createClient } from '@/lib/supabase-client'
 
 interface HotpadsListing {
@@ -413,6 +414,12 @@ function HotpadsPageContent() {
                 <div className="text-2xl sm:text-3xl font-bold text-blue-700">{data.total_listings}</div>
                 <div className="text-xs sm:text-sm text-blue-600 font-medium">Total Listings</div>
               </div>
+              <ScraperRunButton
+                scraperId="hotpads"
+                scraperName="Hotpads"
+                endpoint="/api/trigger-hotpads"
+                color="teal"
+              />
               <div className="flex items-center gap-2 sm:gap-3 flex-1 md:flex-initial">
                 <button
                   onClick={fetchListings}

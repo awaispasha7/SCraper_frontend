@@ -16,6 +16,14 @@ interface ScraperCard {
   borderColor: string
 }
 
+interface ScraperStatus {
+  running: boolean
+  name: string
+}
+
+// Backend API URL - update this with your Railway backend URL
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
+
 export default function HomePage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
@@ -23,6 +31,20 @@ export default function HomePage() {
   const [totalListings, setTotalListings] = useState(0)
   const [lastScrapeTime, setLastScrapeTime] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Scraper control states
+  const [scraperStatuses, setScraperStatuses] = useState<Record<string, ScraperStatus>>({
+    fsbo: { running: false, name: 'FSBO' },
+    apartments: { running: false, name: 'Apartments' },
+    zillow_fsbo: { running: false, name: 'Zillow FSBO' },
+    zillow_frbo: { running: false, name: 'Zillow FRBO' },
+    hotpads: { running: false, name: 'Hotpads' }
+  })
+  const [runningAll, setRunningAll] = useState(false)
+  // Simple trigger message (inline)
+  const [triggerMessage, setTriggerMessage] = useState<string | null>(null)
+  // Success Toast state
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
 
   const scrapers: ScraperCard[] = [
     {
@@ -121,6 +143,74 @@ export default function HomePage() {
     checkAuth()
   }, [router])
 
+  // Poll for scraper status
+  useEffect(() => {
+    if (!isAuthenticated) return
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/status-all`)
+        if (res.ok) {
+          const data = await res.json()
+
+          // Update All Scrapers status
+          const allRunning = data.all_scrapers?.running || false
+          if (runningAll && !allRunning && data.all_scrapers?.last_run) {
+            // Just finished running all
+            setToast({ message: '🚀 All Scrapers Completed Successfully!', type: 'success' })
+            setTimeout(() => setToast(null), 5000)
+          }
+          setRunningAll(allRunning)
+
+          // Update individual statuses
+          const newStatuses: Record<string, ScraperStatus> = { ...scraperStatuses }
+          let changed = false
+
+          // Helper to check completion for toast
+          const checkCompletion = (key: string, name: string) => {
+            const wasRunning = scraperStatuses[key]?.running
+            const isRunning = data[key]?.status === 'running'
+            const lastResult = data[key]?.last_result
+
+            // Log status changes
+            if (wasRunning !== isRunning) {
+              console.log(`[Dashboard] ${name} status changed: ${wasRunning ? 'Running' : 'Idle'} -> ${isRunning ? 'Running' : 'Idle'}`)
+            }
+
+            if (wasRunning && !isRunning) {
+              // Scraper just finished
+              if (lastResult?.success) {
+                console.log(`[Dashboard] ✅ ${name} Scraper Completed Successfully`)
+                setToast({ message: `✅ ${name} Scraper Completed Successfully!`, type: 'success' })
+              } else if (lastResult?.error) {
+                console.error(`[Dashboard] ❌ ${name} Scraper Failed: ${lastResult.error}`)
+                setToast({ message: `❌ ${name} Scraper Failed: ${lastResult.error}`, type: 'error' })
+              }
+              setTimeout(() => setToast(null), 5000)
+            }
+            return isRunning
+          }
+
+          newStatuses.fsbo.running = checkCompletion('fsbo', 'FSBO')
+          newStatuses.apartments.running = checkCompletion('apartments', 'Apartments')
+          newStatuses.zillow_fsbo.running = checkCompletion('zillow_fsbo', 'Zillow FSBO')
+          newStatuses.zillow_frbo.running = checkCompletion('zillow_frbo', 'Zillow FRBO')
+          newStatuses.hotpads.running = checkCompletion('hotpads', 'Hotpads')
+
+          setScraperStatuses(newStatuses)
+        }
+      } catch (err) {
+        // console.error('Polling error', err)
+      }
+    }
+
+    // Initial check
+    pollStatus()
+    // Poll every 3 seconds
+    const interval = setInterval(pollStatus, 3000)
+    return () => clearInterval(interval)
+  }, [isAuthenticated, runningAll]) // Depend on runningAll to detect transitions
+
   // Fetch total listings count
   useEffect(() => {
     if (!isAuthenticated) return
@@ -210,6 +300,77 @@ export default function HomePage() {
     }
   }
 
+  // Trigger individual scraper
+  const triggerScraper = async (scraperId: string, endpoint: string) => {
+    try {
+      // Optimistic update
+      setScraperStatuses((prev: Record<string, ScraperStatus>) => ({
+        ...prev,
+        [scraperId]: { ...prev[scraperId], running: true }
+      }))
+      setTriggerMessage(`Starting ${scraperStatuses[scraperId]?.name || scraperId}...`)
+
+      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+        method: 'GET',
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setTriggerMessage(`✅ ${scraperStatuses[scraperId]?.name || scraperId} request sent!`)
+      } else {
+        setTriggerMessage(`❌ Error: ${data.error || 'Failed to start scraper'}`)
+        // Revert status if failed immediate
+        setScraperStatuses((prev: Record<string, ScraperStatus>) => ({
+          ...prev,
+          [scraperId]: { ...prev[scraperId], running: false }
+        }))
+      }
+
+      // Clear message after 3 seconds
+      setTimeout(() => setTriggerMessage(null), 3000)
+
+    } catch (error) {
+      console.error('Error triggering scraper:', error)
+      setTriggerMessage(`❌ Error: Could not connect to backend`)
+      setScraperStatuses((prev: Record<string, ScraperStatus>) => ({
+        ...prev,
+        [scraperId]: { ...prev[scraperId], running: false }
+      }))
+      setTimeout(() => setTriggerMessage(null), 3000)
+    }
+  }
+
+  // Trigger all scrapers
+  const triggerAllScrapers = async () => {
+    try {
+      setRunningAll(true)
+      setTriggerMessage('🚀 Starting all scrapers...')
+
+      const response = await fetch(`${BACKEND_URL}/api/trigger-all`, {
+        method: 'GET',
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setTriggerMessage('✅ All scrapers started! Running sequentially in background.')
+      } else {
+        setTriggerMessage(`❌ Error: ${data.error || 'Failed to start scrapers'}`)
+        setRunningAll(false)
+      }
+
+      setTimeout(() => setTriggerMessage(null), 5000)
+
+    } catch (error) {
+      console.error('Error triggering all scrapers:', error)
+      setTriggerMessage('❌ Error: Could not connect to backend')
+      setRunningAll(false)
+      setTimeout(() => setTriggerMessage(null), 5000)
+    }
+  }
+
+
   if (checkingAuth) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center">
@@ -296,7 +457,153 @@ export default function HomePage() {
         </div>
       </div>
 
+      {/* Scraper Control Panel - Professional Design */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+          {/* Header */}
+          <div className="px-6 py-4 border-b border-gray-100 bg-gray-50">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-gray-900">Quick Actions</h2>
+              <span className="text-xs text-gray-500">Manual scraper controls</span>
+            </div>
+          </div>
+
+          <div className="p-6">
+            {/* Status Message */}
+            {triggerMessage && (
+              <div className={`mb-5 px-4 py-3 rounded-lg text-sm flex items-center gap-2 ${triggerMessage.includes('✅') ? 'bg-green-50 text-green-700 border border-green-200' :
+                triggerMessage.includes('❌') ? 'bg-red-50 text-red-700 border border-red-200' :
+                  'bg-blue-50 text-blue-700 border border-blue-200'
+                }`}>
+                {triggerMessage}
+              </div>
+            )}
+
+            {/* Individual Scraper Buttons - Clean Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+              <button
+                onClick={() => triggerScraper('fsbo', '/api/trigger')}
+                disabled={scraperStatuses.fsbo.running || runningAll}
+                className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {scraperStatuses.fsbo.running ? (
+                  <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+                <span className="text-xs sm:text-sm font-medium text-gray-700">FSBO</span>
+              </button>
+
+              <button
+                onClick={() => triggerScraper('apartments', '/api/trigger-apartments')}
+                disabled={scraperStatuses.apartments.running || runningAll}
+                className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {scraperStatuses.apartments.running ? (
+                  <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+                <span className="text-xs sm:text-sm font-medium text-gray-700">Apts</span>
+              </button>
+
+              <button
+                onClick={() => triggerScraper('zillow_fsbo', '/api/trigger-zillow-fsbo')}
+                disabled={scraperStatuses.zillow_fsbo.running || runningAll}
+                className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {scraperStatuses.zillow_fsbo.running ? (
+                  <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+                <span className="text-xs sm:text-sm font-medium text-gray-700 text-center leading-tight">Z-FSBO</span>
+              </button>
+
+              <button
+                onClick={() => triggerScraper('zillow_frbo', '/api/trigger-zillow-frbo')}
+                disabled={scraperStatuses.zillow_frbo.running || runningAll}
+                className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {scraperStatuses.zillow_frbo.running ? (
+                  <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+                <span className="text-xs sm:text-sm font-medium text-gray-700 text-center leading-tight">Z-FRBO</span>
+              </button>
+
+              <button
+                onClick={() => triggerScraper('hotpads', '/api/trigger-hotpads')}
+                disabled={scraperStatuses.hotpads.running || runningAll}
+                className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {scraperStatuses.hotpads.running ? (
+                  <svg className="w-5 h-5 text-gray-400 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-gray-400 group-hover:text-gray-600" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+                <span className="text-xs sm:text-sm font-medium text-gray-700">Hotpads</span>
+              </button>
+            </div>
+
+            {/* Run All Button */}
+            <div className="mt-5 pt-5 border-t border-gray-100 flex justify-center">
+              <button
+                onClick={triggerAllScrapers}
+                disabled={runningAll || Object.values(scraperStatuses).some((s) => s.running)}
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-gray-900 text-white rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium"
+              >
+                {runningAll ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                    </svg>
+                    <span>Running all scrapers...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z" />
+                    </svg>
+                    <span>Run All Scrapers</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
       {/* Scraper Cards Grid */}
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-12">
         <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-6">Select a Scraper</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
