@@ -5,7 +5,7 @@ const nextConfig = {
 
 module.exports = nextConfig
 
-// Trigger rebuild to sync environment variables
+// Trigger rebuild to sync environment variables (Attempt 2)
 
 
 
