@@ -5,6 +5,8 @@ const nextConfig = {
 
 module.exports = nextConfig
 
+// Trigger rebuild to sync environment variables
+
 
 
 
