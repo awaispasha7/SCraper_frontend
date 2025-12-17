@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-client'
+import ConsoleViewer from './components/ConsoleViewer'
 
 interface ScraperCard {
   href: string
@@ -483,7 +484,7 @@ export default function HomePage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
               <button
                 onClick={() => triggerScraper('fsbo', '/api/trigger')}
-                disabled={scraperStatuses.fsbo.running || runningAll}
+                disabled={runningAll || Object.values(scraperStatuses).some((s) => s.running)}
                 className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {scraperStatuses.fsbo.running ? (
@@ -501,7 +502,7 @@ export default function HomePage() {
 
               <button
                 onClick={() => triggerScraper('apartments', '/api/trigger-apartments')}
-                disabled={scraperStatuses.apartments.running || runningAll}
+                disabled={runningAll || Object.values(scraperStatuses).some((s) => s.running)}
                 className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {scraperStatuses.apartments.running ? (
@@ -519,7 +520,7 @@ export default function HomePage() {
 
               <button
                 onClick={() => triggerScraper('zillow_fsbo', '/api/trigger-zillow-fsbo')}
-                disabled={scraperStatuses.zillow_fsbo.running || runningAll}
+                disabled={runningAll || Object.values(scraperStatuses).some((s) => s.running)}
                 className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {scraperStatuses.zillow_fsbo.running ? (
@@ -537,7 +538,7 @@ export default function HomePage() {
 
               <button
                 onClick={() => triggerScraper('zillow_frbo', '/api/trigger-zillow-frbo')}
-                disabled={scraperStatuses.zillow_frbo.running || runningAll}
+                disabled={runningAll || Object.values(scraperStatuses).some((s) => s.running)}
                 className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {scraperStatuses.zillow_frbo.running ? (
@@ -555,7 +556,7 @@ export default function HomePage() {
 
               <button
                 onClick={() => triggerScraper('hotpads', '/api/trigger-hotpads')}
-                disabled={scraperStatuses.hotpads.running || runningAll}
+                disabled={runningAll || Object.values(scraperStatuses).some((s) => s.running)}
                 className="w-full h-full group flex flex-col items-center gap-1.5 p-3 sm:p-4 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {scraperStatuses.hotpads.running ? (
@@ -634,6 +635,9 @@ export default function HomePage() {
           ))}
         </div>
       </div>
+
+      {/* Console Viewer (Hidden Logic) */}
+      <ConsoleViewer />
     </div>
   )
 }

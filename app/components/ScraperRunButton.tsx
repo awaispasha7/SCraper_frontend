@@ -21,6 +21,7 @@ export default function ScraperRunButton({
     const [isRunning, setIsRunning] = useState(false)
     const [statusMessage, setStatusMessage] = useState<string | null>(null)
     const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null)
+    const [isSystemBusy, setIsSystemBusy] = useState(false)
 
     const colorClasses = {
         blue: 'bg-blue-50 border-blue-300 text-blue-700 hover:bg-blue-100',
@@ -40,6 +41,12 @@ export default function ScraperRunButton({
                     const apiStatus = data[scraperId] // e.g. data['fsbo']
                     const isBackendRunning = apiStatus?.status === 'running'
 
+                    // Check if ANY scraper is running
+                    const systemCheck = data.all_scrapers?.running ||
+                        Object.values(data).some((val: any) => val?.status === 'running')
+
+                    setIsSystemBusy(systemCheck)
+
                     if (isRunning && !isBackendRunning && apiStatus?.last_run) {
                         // Just finished
                         if (apiStatus.last_result?.success) {
@@ -58,6 +65,8 @@ export default function ScraperRunButton({
         }
 
         const interval = setInterval(pollStatus, 3000)
+        // Initial poll
+        pollStatus()
         return () => clearInterval(interval)
     }, [scraperId, scraperName, isRunning])
 
@@ -125,7 +134,8 @@ export default function ScraperRunButton({
         <div className="flex flex-col items-start gap-2 relative">
             <button
                 onClick={handleClick}
-                className={`flex items-center justify-center gap-2 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 border-2 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md text-sm sm:text-base min-h-[44px] ${isRunning
+                disabled={(!isRunning && isSystemBusy)}
+                className={`flex items-center justify-center gap-2 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 border-2 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md text-sm sm:text-base min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed ${isRunning
                     ? 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
                     : colorClasses[color]
                     }`}
