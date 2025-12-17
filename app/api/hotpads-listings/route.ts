@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic'
+
 // API route to serve Hotpads listings from Supabase
 export async function GET() {
   try {
@@ -24,7 +26,7 @@ export async function GET() {
             const convertToString = (val: any): string => {
               return val !== null && val !== undefined ? String(val) : ''
             }
-            
+
             return {
               id: listing.id,
               address: listing.address || 'Address Not Available',

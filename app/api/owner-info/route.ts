@@ -4,6 +4,8 @@ import { supabase, supabaseAdmin } from '@/lib/supabase'
 import fs from 'fs'
 import path from 'path'
 
+export const dynamic = 'force-dynamic'
+
 // Atom API key for For Sale By Owner listings
 const ATOM_API_KEY = process.env.ATTOM_API_KEY || '00088313f4a127201256b9bf19a2963b'
 // Separate Atom API key for Trulia/Redfin listings
@@ -16,7 +18,7 @@ let ownerDataLookup: Record<string, { ownerName: string; emails: string[]; phone
 
 function loadOwnerDataLookup() {
   if (ownerDataLookup !== null) return ownerDataLookup
-  
+
   try {
     const lookupPath = path.join(process.cwd(), 'owner_data_lookup.json')
     if (fs.existsSync(lookupPath)) {
@@ -27,7 +29,7 @@ function loadOwnerDataLookup() {
   } catch (error) {
     console.warn('⚠️ Could not load owner data lookup file:', error)
   }
-  
+
   ownerDataLookup = {}
   return ownerDataLookup
 }
@@ -52,9 +54,9 @@ function normalizeAddress(address: string): string {
 function lookupOwnerData(address: string): { emails: string[]; phones: string[] } | null {
   const lookup = loadOwnerDataLookup()
   if (!lookup) return null
-  
+
   const normalizedAddr = normalizeAddress(address)
-  
+
   // Try exact match first
   if (lookup[normalizedAddr]) {
     return {
@@ -62,7 +64,7 @@ function lookupOwnerData(address: string): { emails: string[]; phones: string[] 
       phones: lookup[normalizedAddr].phones || []
     }
   }
-  
+
   // Try partial match (in case addresses differ slightly)
   for (const [key, value] of Object.entries(lookup)) {
     if (normalizedAddr.includes(key) || key.includes(normalizedAddr)) {
@@ -72,7 +74,7 @@ function lookupOwnerData(address: string): { emails: string[]; phones: string[] 
       }
     }
   }
-  
+
   return null
 }
 
@@ -89,12 +91,12 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       )
     }
-    
+
     // Use different Atom API key for Trulia/Redfin requests
-    const atomApiKey = (source === 'trulia' || source === 'redfin') 
-      ? TRULIA_REDFIN_ATOM_API_KEY 
+    const atomApiKey = (source === 'trulia' || source === 'redfin')
+      ? TRULIA_REDFIN_ATOM_API_KEY
       : ATOM_API_KEY
-    
+
     console.log(`\n🔍 [OWNER-INFO API] Request received:`)
     console.log(`   Address: "${address}"`)
     console.log(`   Listing Link: "${listingLink || 'not provided'}"`)
@@ -109,22 +111,22 @@ export async function GET(request: NextRequest) {
         // If source is "addresses", check addresses table first
         if (source === 'addresses') {
           console.log('📥 Checking Supabase addresses table for owner data...')
-          
+
           // Parse address to match format in addresses table
           // Address format might be "514 Peach Spring Dr, Houston, TX 77037"
           const addressParts = address.split(',').map(p => p.trim())
           const streetAddress = addressParts[0] || address
-          
+
           // Try to find address by matching street address
           const { data: addressData, error: addressError } = await dbClient
             .from('addresses')
             .select('owner_name, mailing_address, emails, phones, address, city, state, zip')
             .ilike('address', `%${streetAddress}%`)
             .maybeSingle()
-          
+
           if (!addressError && addressData && (addressData.owner_name || addressData.mailing_address || addressData.emails || addressData.phones)) {
             console.log('✅ Found address in Supabase addresses table with owner data')
-            
+
             // Parse emails and phones from text format
             const parseEmails = (emailsData: any): string[] => {
               if (!emailsData) return []
@@ -135,7 +137,7 @@ export async function GET(request: NextRequest) {
               if (Array.isArray(emailsData)) return emailsData
               return []
             }
-            
+
             const parsePhones = (phonesData: any): string[] => {
               if (!phonesData) return []
               if (typeof phonesData === 'string') {
@@ -145,10 +147,10 @@ export async function GET(request: NextRequest) {
               if (Array.isArray(phonesData)) return phonesData
               return []
             }
-            
+
             const emails = parseEmails(addressData.emails)
             const phones = parsePhones(addressData.phones)
-            
+
             return NextResponse.json({
               ownerName: addressData.owner_name || null,
               mailingAddress: addressData.mailing_address || null,
@@ -160,26 +162,26 @@ export async function GET(request: NextRequest) {
             })
           }
         }
-        
+
         // Check listings table for For Sale By Owner listings
         console.log('📥 Checking Supabase listings table for owner data...')
-        
+
         // Try to find listing by address or listing_link
         let query = dbClient
           .from('listings')
           .select('owner_name, mailing_address, owner_emails, owner_phones, address, listing_link')
-        
+
         if (listingLink) {
           query = query.eq('listing_link', listingLink)
         } else {
           query = query.ilike('address', `%${address}%`)
         }
-        
+
         const { data: listing, error: listingError } = await query.maybeSingle()
-        
+
         if (!listingError && listing) {
           console.log('✅ Found For Sale By Owner listing in Supabase with owner data')
-          
+
           // Parse emails and phones from JSONB or text format
           const parseEmails = (emailsData: any): string[] => {
             if (!emailsData) return []
@@ -193,7 +195,7 @@ export async function GET(request: NextRequest) {
             if (Array.isArray(emailsData)) return emailsData
             return []
           }
-          
+
           const parsePhones = (phonesData: any): string[] => {
             if (!phonesData) return []
             if (typeof phonesData === 'string') {
@@ -206,18 +208,18 @@ export async function GET(request: NextRequest) {
             if (Array.isArray(phonesData)) return phonesData
             return []
           }
-          
+
           const allEmails = parseEmails(listing.owner_emails)
           const allPhones = parsePhones(listing.owner_phones)
-          
+
           // Get owner name and mailing address from Supabase
           let ownerName = listing.owner_name && listing.owner_name !== 'null' ? listing.owner_name : null
           let mailingAddress = listing.mailing_address && listing.mailing_address !== 'null' ? listing.mailing_address : null
-          
+
           // If mailing address is missing, try to fetch from CSV file
           if (!mailingAddress || mailingAddress === '' || mailingAddress === 'null') {
             console.log('⚠️ Mailing address missing in Supabase, fetching from CSV file...')
-            
+
             try {
               // Try to load from sale owner.csv file
               const csvPaths = [
@@ -225,25 +227,25 @@ export async function GET(request: NextRequest) {
                 path.join(process.cwd(), '..', 'sale owner.csv'),
                 path.join(process.cwd(), '..', '..', 'sale owner.csv'),
               ]
-              
+
               for (const csvPath of csvPaths) {
                 if (fs.existsSync(csvPath)) {
                   console.log(`📂 Reading CSV file: ${csvPath}`)
                   const csvContent = fs.readFileSync(csvPath, 'utf-8')
                   const csvLines = csvContent.split('\n').filter(line => line.trim())
-                  
+
                   if (csvLines.length < 2) continue
-                  
+
                   // Parse header
                   const headers = csvLines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
                   const addressIndex = headers.indexOf('address')
                   const mailingAddressIndex = headers.indexOf('mailing_address')
-                  
+
                   if (addressIndex === -1 || mailingAddressIndex === -1) {
                     console.warn('⚠️ CSV file missing required columns (address or mailing_address)')
                     continue
                   }
-                  
+
                   // Find matching listing by address
                   for (let i = 1; i < csvLines.length; i++) {
                     const line = csvLines[i]
@@ -251,7 +253,7 @@ export async function GET(request: NextRequest) {
                     const values: string[] = []
                     let currentValue = ''
                     let inQuotes = false
-                    
+
                     for (let j = 0; j < line.length; j++) {
                       const char = line[j]
                       if (char === '"') {
@@ -264,26 +266,26 @@ export async function GET(request: NextRequest) {
                       }
                     }
                     values.push(currentValue.trim().replace(/^"|"$/g, ''))
-                    
+
                     const csvAddress = values[addressIndex] || ''
                     const csvMailingAddress = values[mailingAddressIndex] || ''
-                    
+
                     // Check if addresses match (case-insensitive, partial match)
                     const normalizedSearchAddr = normalizeAddress(address)
                     const normalizedCsvAddr = normalizeAddress(csvAddress)
-                    
-                    if (normalizedCsvAddr && normalizedSearchAddr && 
-                        (normalizedCsvAddr.includes(normalizedSearchAddr) || 
-                         normalizedSearchAddr.includes(normalizedCsvAddr))) {
+
+                    if (normalizedCsvAddr && normalizedSearchAddr &&
+                      (normalizedCsvAddr.includes(normalizedSearchAddr) ||
+                        normalizedSearchAddr.includes(normalizedCsvAddr))) {
                       // Found matching listing
                       if (csvMailingAddress && csvMailingAddress !== '' && csvMailingAddress !== 'null') {
                         mailingAddress = csvMailingAddress
                         console.log(`✅ Fetched mailing address from CSV: ${mailingAddress}`)
-                        
+
                         // Also update owner name if missing
                         const ownerNameIndex = headers.indexOf('owner_name')
-                        if ((!ownerName || ownerName === 'null' || ownerName === '') && 
-                            ownerNameIndex !== -1 && values[ownerNameIndex]) {
+                        if ((!ownerName || ownerName === 'null' || ownerName === '') &&
+                          ownerNameIndex !== -1 && values[ownerNameIndex]) {
                           const csvOwnerName = values[ownerNameIndex].trim()
                           if (csvOwnerName && csvOwnerName !== '' && csvOwnerName !== 'null') {
                             ownerName = csvOwnerName
@@ -297,7 +299,7 @@ export async function GET(request: NextRequest) {
                   break
                 }
               }
-              
+
               if (!mailingAddress || mailingAddress === 'null' || mailingAddress === '') {
                 console.warn('⚠️ Mailing address not found in CSV file')
               }
@@ -306,7 +308,7 @@ export async function GET(request: NextRequest) {
               // Continue with data from Supabase
             }
           }
-          
+
           // Return owner data from Supabase (with Atom API enrichment if needed)
           return NextResponse.json({
             ownerName: ownerName,
@@ -332,27 +334,27 @@ export async function GET(request: NextRequest) {
       if (dbClient) {
         try {
           console.log('📥 Checking Supabase trulia_listings table for owner data...')
-          
+
           // Try to find listing by address or listing_link
           let query = dbClient
             .from('trulia_listings')
             .select('owner_name, mailing_address, emails, phones, address')
-          
+
           if (listingLink) {
             query = query.eq('listing_link', listingLink)
           } else {
             query = query.eq('address', address)
           }
-          
+
           const { data: truliaListing, error: truliaError } = await query.maybeSingle()
-          
+
           if (!truliaError && truliaListing) {
             console.log('✅ Found Trulia listing in Supabase with owner data')
-            
+
             // Parse emails and phones from text format
             const parseEmails = (emailsStr: string | null): string[] => {
-              if (!emailsStr || emailsStr === 'null' || emailsStr === '' || 
-                  emailsStr === 'no email found' || emailsStr === 'No email addresses found' || emailsStr === 'no data') {
+              if (!emailsStr || emailsStr === 'null' || emailsStr === '' ||
+                emailsStr === 'no email found' || emailsStr === 'No email addresses found' || emailsStr === 'no data') {
                 return []
               }
               return emailsStr
@@ -360,10 +362,10 @@ export async function GET(request: NextRequest) {
                 .map(email => email.trim())
                 .filter(email => email && email.includes('@'))
             }
-            
+
             const parsePhones = (phonesStr: string | null): string[] => {
-              if (!phonesStr || phonesStr === 'null' || phonesStr === '' || 
-                  phonesStr === 'no phone available' || phonesStr === 'no data') {
+              if (!phonesStr || phonesStr === 'null' || phonesStr === '' ||
+                phonesStr === 'no phone available' || phonesStr === 'no data') {
                 return []
               }
               const cleaned = phonesStr.replace(/Landline:\s*/gi, '').replace(/Mobile:\s*/gi, '').trim()
@@ -372,10 +374,10 @@ export async function GET(request: NextRequest) {
                 .map(phone => phone.trim())
                 .filter(phone => phone && /[\d-]/.test(phone))
             }
-            
+
             const allEmails = parseEmails(truliaListing.emails)
             const allPhones = parsePhones(truliaListing.phones)
-            
+
             // Return owner data from Supabase
             return NextResponse.json({
               ownerName: truliaListing.owner_name && truliaListing.owner_name !== 'null' ? truliaListing.owner_name : null,
@@ -403,11 +405,11 @@ export async function GET(request: NextRequest) {
       if (dbClient) {
         try {
           console.log('📥 Checking Supabase zillow_fsbo_listings table for owner data...')
-          
+
           let query = dbClient
             .from('zillow_fsbo_listings')
             .select('phone_number, address, detail_url')
-          
+
           if (listingLink) {
             query = query.eq('detail_url', listingLink)
           } else {
@@ -415,9 +417,9 @@ export async function GET(request: NextRequest) {
             // First try exact match
             query = query.ilike('address', `%${address}%`)
           }
-          
+
           let { data: fsboListing, error: fsboError } = await query.maybeSingle()
-          
+
           // If no match and we have an address, try more flexible matching
           if ((fsboError || !fsboListing) && address && !listingLink) {
             console.log('   ⚠️ Initial query failed, trying flexible address matching...')
@@ -426,7 +428,7 @@ export async function GET(request: NextRequest) {
             const streetAddress = addressParts[0] || address
             const streetNumberMatch = streetAddress.match(/^(\d+)/)
             const streetNumber = streetNumberMatch ? streetNumberMatch[1] : null
-            
+
             if (streetNumber) {
               // Try matching by street number + partial street name
               const { data: flexibleMatch, error: flexibleError } = await dbClient
@@ -434,7 +436,7 @@ export async function GET(request: NextRequest) {
                 .select('phone_number, address, detail_url')
                 .ilike('address', `%${streetNumber}%`)
                 .limit(10)
-              
+
               if (!flexibleError && flexibleMatch && flexibleMatch.length > 0) {
                 // Find the best match
                 const normalizedSearch = normalizeAddress(address)
@@ -450,15 +452,15 @@ export async function GET(request: NextRequest) {
               }
             }
           }
-          
+
           if (!fsboError && fsboListing) {
             console.log('✅ Found Zillow FSBO listing in Supabase with owner data')
             console.log('   📞 phone_number value:', fsboListing.phone_number)
-            
+
             // Parse phone_number only (this is the only column that exists)
             const parsePhones = (phoneNumber: any): string[] => {
               const phones: string[] = []
-              
+
               if (phoneNumber !== null && phoneNumber !== undefined) {
                 const phoneStr = String(phoneNumber).trim()
                 if (phoneStr && phoneStr !== '' && phoneStr !== 'null' && phoneStr !== 'no data' && phoneStr !== 'NULL' && phoneStr.toLowerCase() !== 'none') {
@@ -468,23 +470,23 @@ export async function GET(request: NextRequest) {
                   }
                 }
               }
-              
+
               // Remove duplicates and filter out invalid entries
               return phones.filter((p: string) => {
                 const trimmed = p.trim()
                 return trimmed && trimmed.length > 0 && trimmed !== 'null' && trimmed !== 'NULL' && /[\d-]/.test(trimmed)
               })
             }
-            
+
             const allPhones = parsePhones(fsboListing.phone_number)
-            
+
             console.log('   📞 Parsed phones:', allPhones)
-            
+
             if (allPhones.length === 0) {
               console.warn('   ⚠️ WARNING: No phone numbers found in listing!')
               console.warn('      phone_number column:', fsboListing.phone_number)
             }
-            
+
             return NextResponse.json({
               ownerName: null,  // Not available in zillow_fsbo_listings table
               mailingAddress: null,  // Not available in zillow_fsbo_listings table
@@ -515,19 +517,19 @@ export async function GET(request: NextRequest) {
       if (dbClient) {
         try {
           console.log('📥 Checking Supabase zillow_frbo_listings table for owner data...')
-          
+
           let query = dbClient
             .from('zillow_frbo_listings')
             .select('phone_number, address, url')
-          
+
           if (listingLink) {
             query = query.eq('url', listingLink)
           } else {
             query = query.ilike('address', `%${address}%`)
           }
-          
+
           let { data: frboListing, error: frboError } = await query.maybeSingle()
-          
+
           // If no match and we have an address, try more flexible matching
           if ((frboError || !frboListing) && address && !listingLink) {
             console.log('   ⚠️ Initial query failed, trying flexible address matching...')
@@ -535,14 +537,14 @@ export async function GET(request: NextRequest) {
             const streetAddress = addressParts[0] || address
             const streetNumberMatch = streetAddress.match(/^(\d+)/)
             const streetNumber = streetNumberMatch ? streetNumberMatch[1] : null
-            
+
             if (streetNumber) {
               const { data: flexibleMatch, error: flexibleError } = await dbClient
                 .from('zillow_frbo_listings')
                 .select('phone_number, address, url')
                 .ilike('address', `%${streetNumber}%`)
                 .limit(10)
-              
+
               if (!flexibleError && flexibleMatch && flexibleMatch.length > 0) {
                 const normalizedSearch = normalizeAddress(address)
                 const bestMatch = flexibleMatch.find((listing: any) => {
@@ -557,15 +559,15 @@ export async function GET(request: NextRequest) {
               }
             }
           }
-          
+
           if (!frboError && frboListing) {
             console.log('✅ Found Zillow FRBO listing in Supabase with owner data')
             console.log('   📞 phone_number value:', frboListing.phone_number)
-            
+
             // Parse phone_number only (this is the only column that exists)
             const parsePhones = (phoneNumber: any): string[] => {
               const phones: string[] = []
-              
+
               if (phoneNumber !== null && phoneNumber !== undefined) {
                 const phoneStr = String(phoneNumber).trim()
                 if (phoneStr && phoneStr !== '' && phoneStr !== 'null' && phoneStr !== 'no data' && phoneStr !== 'NULL' && phoneStr.toLowerCase() !== 'none') {
@@ -575,23 +577,23 @@ export async function GET(request: NextRequest) {
                   }
                 }
               }
-              
+
               // Remove duplicates and filter out invalid entries
               return phones.filter((p: string) => {
                 const trimmed = p.trim()
                 return trimmed && trimmed.length > 0 && trimmed !== 'null' && trimmed !== 'NULL' && /[\d-]/.test(trimmed)
               })
             }
-            
+
             const allPhones = parsePhones(frboListing.phone_number)
-            
+
             console.log('   📞 Parsed phones:', allPhones)
-            
+
             if (allPhones.length === 0) {
               console.warn('   ⚠️ WARNING: No phone numbers found in listing!')
               console.warn('      phone_number column:', frboListing.phone_number)
             }
-            
+
             return NextResponse.json({
               ownerName: null,  // Not available in zillow_frbo_listings table
               mailingAddress: null,  // Not available in zillow_frbo_listings table
@@ -622,9 +624,9 @@ export async function GET(request: NextRequest) {
       if (dbClient) {
         try {
           console.log('📥 Checking Supabase apartments_frbo_chicago table for owner data...')
-          
+
           let apartmentListing: any = null
-          
+
           if (listingLink) {
             // Try to match by listing_url first (most reliable)
             const { data: linkMatch, error: linkError } = await dbClient
@@ -632,13 +634,13 @@ export async function GET(request: NextRequest) {
               .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
               .eq('listing_url', listingLink)
               .maybeSingle()
-            
+
             if (!linkError && linkMatch) {
               apartmentListing = linkMatch
               console.log('   ✅ Found match by listing_url')
             }
           }
-          
+
           // If no match by listing_link, try by address fields
           if (!apartmentListing && address) {
             // Try full_address first
@@ -647,7 +649,7 @@ export async function GET(request: NextRequest) {
               .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
               .ilike('full_address', `%${address}%`)
               .maybeSingle()
-            
+
             if (!fullAddrError && fullAddrMatch) {
               apartmentListing = fullAddrMatch
               console.log('   ✅ Found match by full_address')
@@ -658,14 +660,14 @@ export async function GET(request: NextRequest) {
                 .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
                 .ilike('title', `%${address}%`)
                 .maybeSingle()
-              
+
               if (!titleError && titleMatch) {
                 apartmentListing = titleMatch
                 console.log('   ✅ Found match by title')
               }
             }
           }
-          
+
           // If still no match, try flexible matching by street number
           if (!apartmentListing && address && !listingLink) {
             console.log('   ⚠️ Initial queries failed, trying flexible address matching...')
@@ -673,14 +675,14 @@ export async function GET(request: NextRequest) {
             const streetAddress = addressParts[0] || address
             const streetNumberMatch = streetAddress.match(/^(\d+)/)
             const streetNumber = streetNumberMatch ? streetNumberMatch[1] : null
-            
+
             if (streetNumber) {
               const { data: flexibleMatch, error: flexibleError } = await dbClient
                 .from('apartments_frbo_chicago')
                 .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
                 .ilike('full_address', `%${streetNumber}%`)
                 .limit(10)
-              
+
               if (!flexibleError && flexibleMatch && flexibleMatch.length > 0) {
                 const normalizedSearch = normalizeAddress(address)
                 const bestMatch = flexibleMatch.find((listing: any) => {
@@ -695,14 +697,14 @@ export async function GET(request: NextRequest) {
               }
             }
           }
-          
+
           if (apartmentListing) {
             console.log('✅ Found Apartment listing in Supabase with owner data')
-            
+
             // Parse owner_email - handle JSONB array or string format
             const parseEmails = (emailData: any): string[] => {
               const emails: string[] = []
-              
+
               if (emailData !== null && emailData !== undefined) {
                 if (Array.isArray(emailData)) {
                   emails.push(...emailData)
@@ -720,14 +722,14 @@ export async function GET(request: NextRequest) {
                   }
                 }
               }
-              
+
               return emails.filter((e: string) => e && e.includes('@'))
             }
-            
+
             // Parse phone_numbers - handle JSONB array, comma-separated string, or single string
             const parsePhones = (phoneData: any): string[] => {
               const phones: string[] = []
-              
+
               if (phoneData !== null && phoneData !== undefined) {
                 if (Array.isArray(phoneData)) {
                   phones.push(...phoneData)
@@ -745,19 +747,19 @@ export async function GET(request: NextRequest) {
                   }
                 }
               }
-              
+
               return phones.filter((p: string) => {
                 const trimmed = p.trim()
                 return trimmed && trimmed.length > 0 && trimmed !== 'null' && trimmed !== 'NULL' && /[\d-]/.test(trimmed)
               })
             }
-            
+
             const allEmails = parseEmails(apartmentListing.owner_email)
             const allPhones = parsePhones(apartmentListing.phone_numbers)
-            
+
             console.log('   📧 Parsed emails:', allEmails)
             console.log('   📞 Parsed phones:', allPhones)
-            
+
             return NextResponse.json({
               ownerName: apartmentListing.owner_name && apartmentListing.owner_name !== 'null' ? apartmentListing.owner_name : null,
               mailingAddress: null, // Not available in apartments_frbo_chicago table
@@ -807,19 +809,19 @@ export async function GET(request: NextRequest) {
       if (dbClient) {
         try {
           console.log('📥 Checking Supabase hotpads_listings table for owner data...')
-          
+
           let query = dbClient
             .from('hotpads_listings')
             .select('phone_number, email, address, url')
-          
+
           if (listingLink) {
             query = query.eq('url', listingLink)
           } else {
             query = query.ilike('address', `%${address}%`)
           }
-          
+
           let { data: hotpadsListing, error: hotpadsError } = await query.maybeSingle()
-          
+
           // If no match and we have an address, try more flexible matching
           if ((hotpadsError || !hotpadsListing) && address && !listingLink) {
             console.log('   ⚠️ Initial query failed, trying flexible address matching...')
@@ -827,14 +829,14 @@ export async function GET(request: NextRequest) {
             const streetAddress = addressParts[0] || address
             const streetNumberMatch = streetAddress.match(/^(\d+)/)
             const streetNumber = streetNumberMatch ? streetNumberMatch[1] : null
-            
+
             if (streetNumber) {
               const { data: flexibleMatch, error: flexibleError } = await dbClient
                 .from('hotpads_listings')
                 .select('phone_number, email, address, url')
                 .ilike('address', `%${streetNumber}%`)
                 .limit(10)
-              
+
               if (!flexibleError && flexibleMatch && flexibleMatch.length > 0) {
                 const normalizedSearch = normalizeAddress(address)
                 const bestMatch = flexibleMatch.find((listing: any) => {
@@ -849,16 +851,16 @@ export async function GET(request: NextRequest) {
               }
             }
           }
-          
+
           if (!hotpadsError && hotpadsListing) {
             console.log('✅ Found Hotpads listing in Supabase with owner data')
             console.log('   📞 phone_number value:', hotpadsListing.phone_number)
             console.log('   📧 email value:', hotpadsListing.email)
-            
+
             // Parse phone_number only (this is the only phone column that exists)
             const parsePhones = (phoneNumber: any): string[] => {
               const phones: string[] = []
-              
+
               if (phoneNumber !== null && phoneNumber !== undefined) {
                 const phoneStr = String(phoneNumber).trim()
                 if (phoneStr && phoneStr !== '' && phoneStr !== 'null' && phoneStr !== 'no data' && phoneStr !== 'NULL' && phoneStr.toLowerCase() !== 'none') {
@@ -868,18 +870,18 @@ export async function GET(request: NextRequest) {
                   }
                 }
               }
-              
+
               // Remove duplicates and filter out invalid entries
               return phones.filter((p: string) => {
                 const trimmed = p.trim()
                 return trimmed && trimmed.length > 0 && trimmed !== 'null' && trimmed !== 'NULL' && /[\d-]/.test(trimmed)
               })
             }
-            
+
             // Parse email (singular, not emails)
             const parseEmails = (emailData: any): string[] => {
               const emails: string[] = []
-              
+
               if (emailData !== null && emailData !== undefined) {
                 const emailStr = String(emailData).trim()
                 if (emailStr && emailStr !== '' && emailStr !== 'null' && emailStr !== 'no data' && emailStr !== 'NULL' && emailStr.toLowerCase() !== 'none') {
@@ -889,21 +891,21 @@ export async function GET(request: NextRequest) {
                   }
                 }
               }
-              
+
               return emails.filter((e: string) => e && e.includes('@'))
             }
-            
+
             const allPhones = parsePhones(hotpadsListing.phone_number)
             const allEmails = parseEmails(hotpadsListing.email)
-            
+
             console.log('   📞 Parsed phones:', allPhones)
             console.log('   📧 Parsed emails:', allEmails)
-            
+
             if (allPhones.length === 0) {
               console.warn('   ⚠️ WARNING: No phone numbers found in listing!')
               console.warn('      phone_number column:', hotpadsListing.phone_number)
             }
-            
+
             return NextResponse.json({
               ownerName: null,  // Not available in hotpads_listings table
               mailingAddress: null,  // Not available in hotpads_listings table
@@ -932,7 +934,7 @@ export async function GET(request: NextRequest) {
     // Using property expanded profile endpoint to find property by address
     // Format: address1=street address&address2=city,state zip
     const apiUrl = `${ATOM_API_BASE_URL}/property/expandedprofile`
-    
+
     // Parse address - format can be:
     // Space-separated: "Street Address City State ZIP"
     // Comma-separated: "Street Address, City, State, ZIP" (common in Redfin/Trulia)
@@ -942,30 +944,30 @@ export async function GET(request: NextRequest) {
     // "4800 S Lake Park 2107 Chicago Il 60615" (with apartment)
     // We need to split into: address1 (street) and address2 (city, state zip)
     // Atom API expects: address1="Street" and address2="City, State ZIP"
-    
+
     let address1 = address.trim()
     let address2 = ''
-    
+
     // Normalize address - remove extra spaces
     address1 = address1.replace(/\s+/g, ' ')
-    
+
     // Check if address is comma-separated (common in Redfin/Trulia CSV format)
     // Format: "Street Address, City, State, ZIP"
     if (address.includes(',')) {
       const commaParts = address.split(',').map(part => part.trim()).filter(part => part)
-      
+
       if (commaParts.length >= 3) {
         // Extract street address (first part)
         address1 = commaParts[0]
-        
+
         // Extract city (second part)
         const city = commaParts[1]
-        
+
         // Extract state and ZIP (third part and beyond)
         // Handle cases like "IL, 60504" or "IL 60504" or just "IL"
         let state = ''
         let zip = ''
-        
+
         if (commaParts.length >= 4) {
           // Format: "Street, City, State, ZIP"
           state = commaParts[2].toUpperCase()
@@ -988,7 +990,7 @@ export async function GET(request: NextRequest) {
             }
           }
         }
-        
+
         // Format address2 as "City, State ZIP"
         if (zip) {
           address2 = `${city}, ${state} ${zip}`.trim()
@@ -997,7 +999,7 @@ export async function GET(request: NextRequest) {
         }
       }
     }
-    
+
     // Normalize ordinal numbers (1St, 2Nd, 3Rd, 4Th, etc.) to standard format
     // Atom Data API expects: "63rd" or "63 RD" format, not "63Rd"
     // Handle various formats: "63Rd", "63rd", "63RD", "63 RD"
@@ -1005,12 +1007,12 @@ export async function GET(request: NextRequest) {
       // Convert to lowercase ordinal: "63Rd" -> "63rd", "63RD" -> "63rd"
       return num + suffix.toLowerCase()
     })
-    
+
     // Also normalize "63 RD" (with space) to "63rd" (no space)
     address1 = address1.replace(/(\d+)\s+(St|Nd|Rd|Th)\b/gi, (match, num, suffix) => {
       return num + suffix.toLowerCase()
     })
-    
+
     // Normalize street abbreviations for better ATTOM matching
     // Common abbreviations that ATTOM might expect
     const streetAbbr = {
@@ -1025,15 +1027,15 @@ export async function GET(request: NextRequest) {
       'Circle': 'Cir',
       'Parkway': 'Pkwy'
     }
-    
+
     // Try to normalize street type if it's a full word
     for (const [full, abbr] of Object.entries(streetAbbr)) {
       const regex = new RegExp(`\\b${full}\\b`, 'gi')
       address1 = address1.replace(regex, abbr)
     }
-    
+
     const addressParts = address1.split(/\s+/)
-    
+
     // Find ZIP code (5 digits) - it's usually the last part
     let zipIndex = -1
     for (let i = addressParts.length - 1; i >= 0; i--) {
@@ -1042,7 +1044,7 @@ export async function GET(request: NextRequest) {
         break
       }
     }
-    
+
     if (zipIndex >= 2) {
       // We found ZIP, now find state (should be before ZIP)
       // Format: "... City State ZIP"
@@ -1051,12 +1053,12 @@ export async function GET(request: NextRequest) {
       const zip = addressParts[zipIndex]
       const state = addressParts[zipIndex - 1]
       const cityIndex = zipIndex - 2
-      
+
       if (cityIndex >= 0) {
         // Extract street address (everything before city)
         // This includes apartment/unit numbers if present
         address1 = addressParts.slice(0, cityIndex).join(' ')
-        
+
         // Extract city, state, zip and format as "City, State ZIP"
         const city = addressParts[cityIndex]
         // Normalize state to uppercase (Il -> IL, IL -> IL)
@@ -1064,18 +1066,18 @@ export async function GET(request: NextRequest) {
         address2 = `${city}, ${normalizedState} ${zip}`
       }
     }
-    
+
     // If comma-separated parsing didn't work or address2 is empty, try space-separated parsing
     if (!address2 || address1 === address) {
       // Try case-insensitive search for Chicago
       const chicagoRegex = /\bchicago\b/i
       const chicagoMatch = address.match(chicagoRegex)
-      
+
       if (chicagoMatch && chicagoMatch.index && chicagoMatch.index > 0) {
         const chicagoIndex = chicagoMatch.index
         address1 = address.substring(0, chicagoIndex).trim()
         const remaining = address.substring(chicagoIndex).trim()
-        
+
         // Try to format remaining as "City, State ZIP"
         const remainingParts = remaining.split(/\s+/)
         if (remainingParts.length >= 3) {
@@ -1097,13 +1099,13 @@ export async function GET(request: NextRequest) {
         // Look for common patterns: "City State ZIP" or "City State"
         const cityStateZipPattern = /\b([A-Z][a-z]+)\s+([A-Z]{2})\s+(\d{5})\b/
         const match = address.match(cityStateZipPattern)
-        
+
         if (match) {
           const city = match[1]
           const state = match[2]
           const zip = match[3]
           const cityStart = address.indexOf(city)
-          
+
           if (cityStart > 0) {
             address1 = address.substring(0, cityStart).trim()
             address2 = `${city}, ${state} ${zip}`
@@ -1151,13 +1153,13 @@ export async function GET(request: NextRequest) {
         }
       }
     }
-    
+
     // Final validation and cleanup
     if (!address1 || address1.length < 5) {
       // If address1 is too short, use full address
       address1 = address
     }
-    
+
     // Only use default if we absolutely cannot determine city/state
     // Try one more time to extract from comma-separated format
     if (!address2 || address2.trim() === '') {
@@ -1182,7 +1184,7 @@ export async function GET(request: NextRequest) {
     // Validate that we have both parameters
     if (!address1 || !address2) {
       return NextResponse.json(
-        { 
+        {
           error: 'Failed to parse address. Both address1 and address2 are required.',
           details: { original: address, parsed: { address1, address2 } }
         },
@@ -1203,7 +1205,7 @@ export async function GET(request: NextRequest) {
         'Content-Type': 'application/json',
       },
     })
-    
+
     // Request/response details logged only on error
 
     if (!response.ok) {
@@ -1216,17 +1218,17 @@ export async function GET(request: NextRequest) {
         requestAddress: address,
         parsedAddress: { address1, address2 }
       })
-      
+
       // Try to parse error as JSON or XML
       let errorDetails: any = errorText
       let errorMessage = 'Failed to fetch owner information from Atom Data API'
       let errorJson: any = null
-      
+
       // Try JSON first
       try {
         errorJson = JSON.parse(errorText)
         errorDetails = errorJson
-        
+
         // Extract specific error message if available
         if (errorJson.status && errorJson.status.msg) {
           errorMessage = errorJson.status.msg
@@ -1235,21 +1237,21 @@ export async function GET(request: NextRequest) {
         } else if (errorJson.error) {
           errorMessage = errorJson.error
         }
-        
+
         console.error('Atom API Error (Parsed JSON):', errorJson)
       } catch (jsonError) {
         // Not JSON, try XML parsing
         if (errorText.includes('<Response>') || errorText.includes('<response>') || errorText.includes('<?xml')) {
           console.log('Parsing XML error response')
-          
+
           // Basic XML parsing for error messages
           const msgMatch = errorText.match(/<msg>(.*?)<\/msg>/i)
           const codeMatch = errorText.match(/<code>(.*?)<\/code>/i)
-          
+
           if (msgMatch) {
             errorMessage = msgMatch[1].trim()
           }
-          
+
           if (codeMatch) {
             const code = codeMatch[1].trim()
             errorJson = {
@@ -1260,7 +1262,7 @@ export async function GET(request: NextRequest) {
             }
             errorDetails = errorJson
           }
-          
+
           console.error('Atom API Error (Parsed XML):', {
             code: codeMatch ? codeMatch[1] : 'N/A',
             message: errorMessage
@@ -1270,11 +1272,11 @@ export async function GET(request: NextRequest) {
           console.error('Atom API Error (Raw text):', errorText.substring(0, 200))
         }
       }
-      
+
       // Provide user-friendly error message
       let userMessage = errorMessage
       let httpStatus = response.status
-      
+
       if (response.status === 400) {
         // Check if it's "SuccessWithoutResult" (property not found)
         if (errorJson && errorJson.status && errorJson.status.msg === 'SuccessWithoutResult') {
@@ -1291,7 +1293,7 @@ export async function GET(request: NextRequest) {
         }
       } else if (response.status === 401) {
         userMessage = `API authentication failed (401 Unauthorized).\n\nPossible causes:\n• API key is invalid or expired\n• API key format is incorrect\n• API key permissions are insufficient\n\nPlease verify your Atom Data API key is correct and has proper permissions.`
-        
+
         // Log API key format for debugging (without exposing full key)
         console.error('401 Unauthorized - API Key Info:', {
           keyLength: ATOM_API_KEY.length,
@@ -1304,7 +1306,7 @@ export async function GET(request: NextRequest) {
       } else if (response.status === 429) {
         userMessage = 'API rate limit exceeded. Please try again later.'
       }
-      
+
       // If API fails, return a structured error
       const errorResponse = {
         error: userMessage,
@@ -1314,30 +1316,30 @@ export async function GET(request: NextRequest) {
         parsedAddress: { address1, address2 },
         requestUrl: fullUrl.substring(0, 100) + '...' // Truncate for security
       }
-      
+
       console.log('Returning error response:', {
         httpStatus,
         errorMessage: userMessage.substring(0, 100),
         hasErrorField: true
       })
-      
+
       return NextResponse.json(errorResponse, { status: httpStatus })
     }
 
     // Check content type - Atom API might return XML or JSON
     const contentType = response.headers.get('content-type') || ''
-    
+
     // Read response as text first (so we can handle both JSON and XML)
     const responseText = await response.text()
     let data: any
-    
+
     // Try to parse as JSON first (most common case)
     try {
       data = JSON.parse(responseText)
     } catch (jsonError) {
       // Not JSON, check if it's XML
       if (contentType.includes('xml') || responseText.trim().startsWith('<?xml') || responseText.trim().startsWith('<response>')) {
-        
+
         // Atom API sometimes returns XML even when Accept: application/json is sent
         // This might be a configuration issue or the API might not support JSON for this endpoint
         return NextResponse.json(
@@ -1364,14 +1366,14 @@ export async function GET(request: NextRequest) {
         )
       }
     }
-    
+
     // Check if API returned "SuccessWithoutResult" (property not found)
     if (data.status && data.status.msg === 'SuccessWithoutResult' && data.status.total === 0) {
       // Even if ATTOM doesn't find the property, we can still try Melissa Personator
       // with just the property address - sometimes Melissa has data ATTOM doesn't
       let melissaEmail = null
       let melissaPhone = null
-      
+
       try {
         // Try Melissa with just the address (no owner name)
         // Some Melissa APIs can do reverse address lookup
@@ -1379,7 +1381,7 @@ export async function GET(request: NextRequest) {
           null, // No owner name available
           address // Use property address as mailing address
         )
-        
+
         if (melissaData.success && (melissaData.email || melissaData.phone)) {
           melissaEmail = melissaData.email
           melissaPhone = melissaData.phone
@@ -1387,7 +1389,7 @@ export async function GET(request: NextRequest) {
       } catch (melissaError: any) {
         // Silent - expected if no data available
       }
-      
+
       // Return response with whatever data we have (even if just from Melissa)
       return NextResponse.json(
         {
@@ -1407,7 +1409,7 @@ export async function GET(request: NextRequest) {
         { status: 404 }
       )
     }
-    
+
     // Check if response has any data
     if (!data || (typeof data === 'object' && Object.keys(data).length === 0)) {
       console.warn('⚠️ Atom API returned empty response')
@@ -1442,19 +1444,19 @@ export async function GET(request: NextRequest) {
         property?.owner1?.name,
         property?.owner1?.fullName,
         property?.owner?.fullName,
-        property?.owner?.firstName && property?.owner?.lastName 
+        property?.owner?.firstName && property?.owner?.lastName
           ? `${property.owner.firstName} ${property.owner.lastName}`.trim()
           : null,
-        property?.owner1?.firstName && property?.owner1?.lastName 
+        property?.owner1?.firstName && property?.owner1?.lastName
           ? `${property.owner1.firstName} ${property.owner1.lastName}`.trim()
           : null,
       ]
-      
+
       for (const name of paths) {
-        if (name && typeof name === 'string' && name.trim() && 
-            name !== 'null' && name !== 'None' && 
-            !name.includes('NOT AVAILABLE') && 
-            !name.includes('AVAILABLE FROM DATA SOURCE')) {
+        if (name && typeof name === 'string' && name.trim() &&
+          name !== 'null' && name !== 'None' &&
+          !name.includes('NOT AVAILABLE') &&
+          !name.includes('AVAILABLE FROM DATA SOURCE')) {
           return name.trim()
         }
       }
@@ -1465,20 +1467,20 @@ export async function GET(request: NextRequest) {
     const extractMailingAddress = (property: any): string | null => {
       // Atom Data API structure: property.assessment.owner.mailingAddressOneLine
       // Or property.assessment.owner.mailingAddress object
-      
+
       // First try mailingAddressOneLine (single line format)
       const oneLinePaths = [
         property?.assessment?.owner?.mailingAddressOneLine,
         property?.owner?.mailingAddressOneLine,
         property?.mailingAddressOneLine,
       ]
-      
+
       for (const oneLine of oneLinePaths) {
         if (oneLine && typeof oneLine === 'string' && oneLine.trim() && oneLine !== '') {
           return oneLine.trim()
         }
       }
-      
+
       // Then try mailingAddress object
       const mailAddrPaths = [
         property?.assessment?.owner?.mailingAddress,
@@ -1487,7 +1489,7 @@ export async function GET(request: NextRequest) {
         property?.owner1?.mailingAddress,
         property?.mailingAddress,
       ]
-      
+
       for (const mailAddr of mailAddrPaths) {
         if (mailAddr && typeof mailAddr === 'object') {
           const parts = [
@@ -1504,7 +1506,7 @@ export async function GET(request: NextRequest) {
             mailAddr.postal1,
             mailAddr.postalCode,
           ].filter(Boolean)
-          
+
           if (parts.length > 0) {
             return parts.join(', ')
           }
@@ -1520,14 +1522,14 @@ export async function GET(request: NextRequest) {
       try {
         console.log(`\n🔍 [OWNER-INFO] Fetching email/phone from Supabase for: "${address}"`)
         console.log(`   Using: ${supabaseAdmin ? 'Admin client' : 'Regular client'}`)
-        
+
         // TEST: First, let's see if we can query ANY listing with emails/phones
         const { data: testQuery, error: testError } = await dbClient
           .from('listings')
           .select('id, address, owner_emails, owner_phones')
           .not('owner_emails', 'is', null)
           .limit(1)
-        
+
         if (testError) {
           console.error(`   ❌ TEST QUERY FAILED: ${testError.message}`)
           console.error(`   Error code: ${testError.code}`)
@@ -1541,7 +1543,7 @@ export async function GET(request: NextRequest) {
         } else {
           console.log(`   ⚠️ TEST QUERY: No listings with emails found in database`)
         }
-        
+
         // Extract street number and first word of street name
         // Examples: 
         //   "8232 W Agatite Avenue Norridge Il 60706" -> number: "8232", street: "agatite"
@@ -1549,43 +1551,43 @@ export async function GET(request: NextRequest) {
         const addressLower = address.toLowerCase().trim()
         const numberMatch = addressLower.match(/^(\d+)/)
         const streetNumber = numberMatch ? numberMatch[1] : ''
-        
+
         // Extract first word of street name (after number and optional direction)
         // Handle "West" -> "W", "North" -> "N", etc.
-        const streetNameMatch = addressLower.match(/^\d+\s+(?:west|w|north|n|south|s|east|e)\s+([a-z]+)/) || 
-                                addressLower.match(/^\d+\s+([a-z]+)/)
+        const streetNameMatch = addressLower.match(/^\d+\s+(?:west|w|north|n|south|s|east|e)\s+([a-z]+)/) ||
+          addressLower.match(/^\d+\s+([a-z]+)/)
         const streetName = streetNameMatch ? streetNameMatch[1] : ''
-        
+
         // Also normalize street type abbreviations for better matching
         // "Avenue" -> "Ave", "Street" -> "St", etc.
         const normalizedStreetName = streetName
           ? streetName
-              .replace(/avenue|ave/g, 'ave')
-              .replace(/street|st/g, 'st')
-              .replace(/road|rd/g, 'rd')
-              .replace(/drive|dr/g, 'dr')
-              .replace(/boulevard|blvd/g, 'blvd')
-              .replace(/lane|ln/g, 'ln')
-              .replace(/place|pl/g, 'pl')
-              .replace(/court|ct/g, 'ct')
-              .replace(/circle|cir/g, 'cir')
+            .replace(/avenue|ave/g, 'ave')
+            .replace(/street|st/g, 'st')
+            .replace(/road|rd/g, 'rd')
+            .replace(/drive|dr/g, 'dr')
+            .replace(/boulevard|blvd/g, 'blvd')
+            .replace(/lane|ln/g, 'ln')
+            .replace(/place|pl/g, 'pl')
+            .replace(/court|ct/g, 'ct')
+            .replace(/circle|cir/g, 'cir')
           : ''
-        
+
         console.log(`   Extracted: number="${streetNumber}", street="${streetName}", normalized="${normalizedStreetName}"`)
-        
+
         if (!streetNumber) {
           console.log(`   ⚠️ Could not extract street number from address`)
         }
-        
+
         // FIRST: Try to match by listing_link if provided (most reliable)
         let listingData: any = null
         let supabaseError: any = null
-        
+
         // Determine which table to query based on source
         const tableName = (source === 'redfin') ? 'redfin_listings' : 'listings'
         const emailColumn = (source === 'redfin') ? 'emails' : 'owner_emails'
         const phoneColumn = (source === 'redfin') ? 'phones' : 'owner_phones'
-        
+
         if (listingLink) {
           console.log(`   [Strategy 0] Trying to match by listing_link: "${listingLink}" in table: ${tableName}`)
           const { data: linkMatch, error: linkError } = await dbClient
@@ -1593,7 +1595,7 @@ export async function GET(request: NextRequest) {
             .select(`address, ${emailColumn}, ${phoneColumn}, listing_link, owner_name, mailing_address`)
             .eq('listing_link', listingLink)
             .maybeSingle()
-          
+
           if (!linkError && linkMatch) {
             listingData = linkMatch
             console.log(`   ✅✅✅ MATCHED BY LISTING_LINK!`)
@@ -1602,7 +1604,7 @@ export async function GET(request: NextRequest) {
             console.log(`   ⚠️ No match by listing_link in ${tableName}`)
           }
         }
-        
+
         // SECOND: If no listing_link match, query ALL listings and match by address
         if (!listingData) {
           console.log(`   [Strategy 1] Querying ALL listings from ${tableName}...`)
@@ -1610,7 +1612,7 @@ export async function GET(request: NextRequest) {
           let { data: allListings, error: queryError } = await dbClient
             .from(tableName)
             .select(`address, ${emailColumn}, ${phoneColumn}, listing_link, owner_name, mailing_address`)
-          
+
           // If that fails, try with limit
           if (queryError) {
             console.log(`   ⚠️ First query failed, trying with limit...`)
@@ -1618,95 +1620,95 @@ export async function GET(request: NextRequest) {
               .from(tableName)
               .select(`address, ${emailColumn}, ${phoneColumn}, listing_link, owner_name, mailing_address`)
               .limit(1000)
-            
+
             allListings = result.data
             queryError = result.error
           }
-          
+
           supabaseError = queryError
-          
+
           if (queryError) {
             console.error(`   ❌ Error querying Supabase: ${queryError.message}`)
             console.error(`   Error details:`, JSON.stringify(queryError))
           } else if (allListings && allListings.length > 0) {
             console.log(`   ✅ Found ${allListings.length} listings with emails/phones in database`)
-            
+
             // Find the best match by street number (required) + street name
             let bestMatch: any = null
             let bestScore = 0
-            
+
             for (const listing of allListings) {
-            const listingAddr = (listing.address || '').toLowerCase()
-            
-            // Calculate match score
-            let score = 0
-            
-            // Street number MUST match (required)
-            if (streetNumber && listingAddr.includes(streetNumber)) {
-              score += 50 // High weight for street number
+              const listingAddr = (listing.address || '').toLowerCase()
+
+              // Calculate match score
+              let score = 0
+
+              // Street number MUST match (required)
+              if (streetNumber && listingAddr.includes(streetNumber)) {
+                score += 50 // High weight for street number
+              } else {
+                continue // Skip if street number doesn't match
+              }
+
+              // Street name match (bonus) - also check normalized version
+              const listingAddrNormalized = listingAddr
+                .replace(/west|w\b/g, 'w')
+                .replace(/north|n\b/g, 'n')
+                .replace(/south|s\b/g, 's')
+                .replace(/east|e\b/g, 'e')
+                .replace(/avenue|ave/g, 'ave')
+                .replace(/street|st\b/g, 'st')
+                .replace(/road|rd\b/g, 'rd')
+                .replace(/drive|dr\b/g, 'dr')
+                .replace(/boulevard|blvd/g, 'blvd')
+                .replace(/lane|ln\b/g, 'ln')
+                .replace(/place|pl\b/g, 'pl')
+                .replace(/court|ct\b/g, 'ct')
+                .replace(/circle|cir\b/g, 'cir')
+
+              if (streetName && (listingAddr.includes(streetName) || listingAddrNormalized.includes(normalizedStreetName))) {
+                score += 30
+              }
+
+              // Check if more words match (bonus)
+              const searchWords = addressLower.split(/\s+/).filter(w =>
+                w.length > 2 &&
+                !['w', 'n', 's', 'e', 'il', 'illinois', 'st', 'street', 'ave', 'avenue', 'rd', 'road', 'dr', 'drive'].includes(w)
+              )
+              const listingWords = listingAddr.split(/\s+/).filter((w: string) => w.length > 2)
+              const matchingWords = searchWords.filter((w: string) => listingWords.includes(w))
+              score += matchingWords.length * 5
+
+              if (score > bestScore) {
+                bestScore = score
+                bestMatch = listing
+              }
+            }
+
+            if (bestMatch && bestScore >= 50) { // At least street number must match
+              listingData = bestMatch
+              console.log(`   ✅✅✅ MATCH FOUND! Score: ${bestScore}`)
+              console.log(`   Search address: "${address}"`)
+              console.log(`   Database address: "${bestMatch.address}"`)
             } else {
-              continue // Skip if street number doesn't match
+              console.log(`   ⚠️ No match found (best score: ${bestScore}, need >= 50)`)
+              if (allListings.length > 0) {
+                console.log(`   Sample addresses in DB (first 5):`)
+                allListings.slice(0, 5).forEach((l: any, i: number) => {
+                  console.log(`     ${i + 1}. "${l.address}"`)
+                })
+              }
             }
-            
-            // Street name match (bonus) - also check normalized version
-            const listingAddrNormalized = listingAddr
-              .replace(/west|w\b/g, 'w')
-              .replace(/north|n\b/g, 'n')
-              .replace(/south|s\b/g, 's')
-              .replace(/east|e\b/g, 'e')
-              .replace(/avenue|ave/g, 'ave')
-              .replace(/street|st\b/g, 'st')
-              .replace(/road|rd\b/g, 'rd')
-              .replace(/drive|dr\b/g, 'dr')
-              .replace(/boulevard|blvd/g, 'blvd')
-              .replace(/lane|ln\b/g, 'ln')
-              .replace(/place|pl\b/g, 'pl')
-              .replace(/court|ct\b/g, 'ct')
-              .replace(/circle|cir\b/g, 'cir')
-            
-            if (streetName && (listingAddr.includes(streetName) || listingAddrNormalized.includes(normalizedStreetName))) {
-              score += 30
-            }
-            
-            // Check if more words match (bonus)
-            const searchWords = addressLower.split(/\s+/).filter(w => 
-              w.length > 2 && 
-              !['w', 'n', 's', 'e', 'il', 'illinois', 'st', 'street', 'ave', 'avenue', 'rd', 'road', 'dr', 'drive'].includes(w)
-            )
-            const listingWords = listingAddr.split(/\s+/).filter((w: string) => w.length > 2)
-            const matchingWords = searchWords.filter((w: string) => listingWords.includes(w))
-            score += matchingWords.length * 5
-            
-            if (score > bestScore) {
-              bestScore = score
-              bestMatch = listing
-            }
-          }
-          
-          if (bestMatch && bestScore >= 50) { // At least street number must match
-            listingData = bestMatch
-            console.log(`   ✅✅✅ MATCH FOUND! Score: ${bestScore}`)
-            console.log(`   Search address: "${address}"`)
-            console.log(`   Database address: "${bestMatch.address}"`)
-          } else {
-            console.log(`   ⚠️ No match found (best score: ${bestScore}, need >= 50)`)
-            if (allListings.length > 0) {
-              console.log(`   Sample addresses in DB (first 5):`)
-              allListings.slice(0, 5).forEach((l: any, i: number) => {
-                console.log(`     ${i + 1}. "${l.address}"`)
-              })
-            }
-          }
           } else {
             console.log(`   ⚠️ No listings with emails/phones found in database`)
           }
         }
-        
+
         // Use bestMatch if found (already set above if match found)
-        
+
         if (!supabaseError && listingData) {
           console.log(`✅ Found listing in Supabase with address: "${listingData.address}"`)
-          
+
           // For Redfin, also set owner_name and mailing_address from database
           if (source === 'redfin' && listingData.owner_name) {
             ownerInfo.ownerName = listingData.owner_name
@@ -1714,17 +1716,17 @@ export async function GET(request: NextRequest) {
           if (source === 'redfin' && listingData.mailing_address) {
             ownerInfo.mailingAddress = listingData.mailing_address
           }
-          
+
           // Parse emails and phones - handle both JSONB arrays and text strings
           let emails: string[] = []
           let phones: string[] = []
-          
+
           const emailData = listingData[emailColumn]
           const phoneData = listingData[phoneColumn]
-          
+
           console.log(`   📧 Email data type: ${typeof emailData}, value: ${emailData ? (typeof emailData === 'string' ? emailData.substring(0, 100) : JSON.stringify(emailData).substring(0, 100)) : 'null/undefined'}`)
           console.log(`   📞 Phone data type: ${typeof phoneData}, value: ${phoneData ? (typeof phoneData === 'string' ? phoneData.substring(0, 100) : JSON.stringify(phoneData).substring(0, 100)) : 'null/undefined'}`)
-          
+
           if (emailData !== null && emailData !== undefined && emailData !== '') {
             if (typeof emailData === 'string') {
               // For Redfin, emails might be comma/newline separated text
@@ -1741,7 +1743,7 @@ export async function GET(request: NextRequest) {
               emails = emailData
             }
           }
-          
+
           if (phoneData !== null && phoneData !== undefined && phoneData !== '') {
             if (typeof phoneData === 'string') {
               // For Redfin, phones might be comma/newline separated text
@@ -1750,7 +1752,7 @@ export async function GET(request: NextRequest) {
                 const rawPhones = cleaned.split(/[,\n]/)
                   .map((p: string) => p.trim())
                   .filter((p: string) => p && /[\d-]/.test(p))
-                
+
                 // Format phone numbers: keep original format if it looks good, otherwise format as (XXX) XXX-XXXX
                 phones = rawPhones.map((p: string) => {
                   const digitsOnly = p.replace(/\D/g, '')
@@ -1780,12 +1782,12 @@ export async function GET(request: NextRequest) {
               phones = phoneData
             }
           }
-          
+
           if (emails.length > 0 || phones.length > 0) {
             ownerInfo.email = emails.length > 0 ? emails[0] : null
             ownerInfo.phone = phones.length > 0 ? phones[0] : null
-            ;(ownerInfo as any).allEmails = emails
-            ;(ownerInfo as any).allPhones = phones
+              ; (ownerInfo as any).allEmails = emails
+              ; (ownerInfo as any).allPhones = phones
             console.log(`✅✅✅ Supabase Data Found: { emails: ${emails.length}, phones: ${phones.length} }`)
             console.log(`   Emails: ${JSON.stringify(emails)}`)
             console.log(`   Phones: ${JSON.stringify(phones)}`)
@@ -1812,7 +1814,7 @@ export async function GET(request: NextRequest) {
 
     // Try to extract from different response structures
     let property = null
-    
+
     if (data.property && Array.isArray(data.property) && data.property.length > 0) {
       property = data.property[0]
     } else if (data.property && typeof data.property === 'object') {
@@ -1826,7 +1828,7 @@ export async function GET(request: NextRequest) {
     if (property) {
       ownerInfo.ownerName = extractOwnerName(property)
       ownerInfo.mailingAddress = extractMailingAddress(property)
-      
+
       // SECOND: If Supabase doesn't have data, try CSV lookup (Supabase was already checked above)
       if (!(ownerInfo as any).allEmails || (ownerInfo as any).allEmails.length === 0) {
         // First try the owner_data_lookup.json
@@ -1835,11 +1837,11 @@ export async function GET(request: NextRequest) {
           // Use first email and phone from CSV if available
           if (!ownerInfo.email) ownerInfo.email = csvData.emails.length > 0 ? csvData.emails[0] : null
           if (!ownerInfo.phone) ownerInfo.phone = csvData.phones.length > 0 ? csvData.phones[0] : null
-          
-          // Store all emails and phones for frontend display
-          ;(ownerInfo as any).allEmails = csvData.emails
-          ;(ownerInfo as any).allPhones = csvData.phones
-          
+
+            // Store all emails and phones for frontend display
+            ; (ownerInfo as any).allEmails = csvData.emails
+            ; (ownerInfo as any).allPhones = csvData.phones
+
           console.log(`✅ CSV Data: { emails: ${csvData.emails.length}, phones: ${csvData.phones.length} }`)
         } else if (source === 'redfin') {
           // Fallback: Read directly from redfin_listings_enriched.csv
@@ -1849,21 +1851,21 @@ export async function GET(request: NextRequest) {
               path.join(process.cwd(), '..', 'redfin_listings_enriched.csv'),
               path.join(process.cwd(), '..', '..', 'redfin_listings_enriched.csv'),
             ]
-            
+
             for (const csvPath of csvPaths) {
               if (fs.existsSync(csvPath)) {
                 const csvContent = fs.readFileSync(csvPath, 'utf-8')
                 const csvLines = csvContent.split('\n').filter(line => line.trim())
                 if (csvLines.length < 2) continue
-                
+
                 // Parse header
                 const headers = csvLines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''))
                 const addressIndex = headers.indexOf('address')
                 const emailIndex = headers.indexOf('emails')
                 const phoneIndex = headers.indexOf('phones')
-                
+
                 if (addressIndex === -1) continue
-                
+
                 // Find matching listing by address
                 for (let i = 1; i < csvLines.length; i++) {
                   const line = csvLines[i]
@@ -1871,7 +1873,7 @@ export async function GET(request: NextRequest) {
                   const values: string[] = []
                   let currentValue = ''
                   let inQuotes = false
-                  
+
                   for (let j = 0; j < line.length; j++) {
                     const char = line[j]
                     if (char === '"') {
@@ -1884,14 +1886,14 @@ export async function GET(request: NextRequest) {
                     }
                   }
                   values.push(currentValue.trim().replace(/^"|"$/g, ''))
-                  
+
                   const listingAddress = values[addressIndex] || ''
-                  if (listingAddress && address.toLowerCase().includes(listingAddress.toLowerCase().split(',')[0]) || 
-                      listingAddress.toLowerCase().includes(address.toLowerCase().split(',')[0])) {
+                  if (listingAddress && address.toLowerCase().includes(listingAddress.toLowerCase().split(',')[0]) ||
+                    listingAddress.toLowerCase().includes(address.toLowerCase().split(',')[0])) {
                     // Found matching listing
                     const emailsStr = emailIndex >= 0 ? values[emailIndex] || '' : ''
                     const phonesStr = phoneIndex >= 0 ? values[phoneIndex] || '' : ''
-                    
+
                     if (emailsStr || phonesStr) {
                       const emails = emailsStr.split(/[,\n]/).map(e => e.trim()).filter(e => e && e.includes('@'))
                       const phones = phonesStr.split(/[,\n]/)
@@ -1908,12 +1910,12 @@ export async function GET(request: NextRequest) {
                           const digitsOnly = p.replace(/\D/g, '')
                           return digitsOnly.length >= 10
                         })
-                      
+
                       if (emails.length > 0 || phones.length > 0) {
                         if (!ownerInfo.email && emails.length > 0) ownerInfo.email = emails[0]
                         if (!ownerInfo.phone && phones.length > 0) ownerInfo.phone = phones[0]
-                        ;(ownerInfo as any).allEmails = emails
-                        ;(ownerInfo as any).allPhones = phones
+                          ; (ownerInfo as any).allEmails = emails
+                          ; (ownerInfo as any).allPhones = phones
                         console.log(`✅ Found in CSV file: { emails: ${emails.length}, phones: ${phones.length} }`)
                         break
                       }
@@ -1932,29 +1934,29 @@ export async function GET(request: NextRequest) {
       // Even if property not found, we might have email/phone from Supabase above
       console.log('⚠️ No property found from ATTOM API, but may have email/phone from Supabase')
     }
-    
+
     // If we still don't have email/phone, try Melissa as final fallback
-    if (((ownerInfo as any).allEmails?.length === 0 || !(ownerInfo as any).allEmails) && 
-        ((ownerInfo as any).allPhones?.length === 0 || !(ownerInfo as any).allPhones) &&
-        ownerInfo.ownerName && ownerInfo.mailingAddress) {
+    if (((ownerInfo as any).allEmails?.length === 0 || !(ownerInfo as any).allEmails) &&
+      ((ownerInfo as any).allPhones?.length === 0 || !(ownerInfo as any).allPhones) &&
+      ownerInfo.ownerName && ownerInfo.mailingAddress) {
       console.log('🔍 Calling Melissa Personator API as fallback...')
       try {
         const melissaData = await fetchMelissaPersonatorData(
           ownerInfo.ownerName,
           ownerInfo.mailingAddress
         )
-        
+
         if (melissaData.success) {
           // Only use Melissa data if we don't have any from Supabase/CSV
           if (!ownerInfo.email && melissaData.email) {
             ownerInfo.email = melissaData.email
-            ;(ownerInfo as any).allEmails = [melissaData.email]
+              ; (ownerInfo as any).allEmails = [melissaData.email]
           }
           if (!ownerInfo.phone && melissaData.phone) {
             ownerInfo.phone = melissaData.phone
-            ;(ownerInfo as any).allPhones = [melissaData.phone]
+              ; (ownerInfo as any).allPhones = [melissaData.phone]
           }
-          
+
           // Log result (found or not found)
           console.log('✅ Melissa Personator:', {
             email: melissaData.email ? 'Found' : 'Not found',
@@ -1967,7 +1969,7 @@ export async function GET(request: NextRequest) {
         console.error('❌ Error calling Melissa Personator API:', melissaError.message)
       }
     }
-    
+
     // If no data extracted, log the property structure for debugging
     if (property && !ownerInfo.ownerName && !ownerInfo.mailingAddress) {
       console.log('Property object keys:', Object.keys(property))
@@ -1999,29 +2001,29 @@ export async function GET(request: NextRequest) {
     // Ensure allEmails and allPhones are always arrays
     const allEmails = (ownerInfo as any).allEmails || []
     const allPhones = (ownerInfo as any).allPhones || []
-    
+
     // Save owner_name and mailing_address to database if we have them
     if (dbClient && (ownerInfo.ownerName || ownerInfo.mailingAddress)) {
       try {
         // Prepare update data
         const updateData: any = {}
-        
+
         if (ownerInfo.ownerName && ownerInfo.ownerName.trim() !== '') {
           updateData.owner_name = ownerInfo.ownerName.trim()
           console.log(`\n💾 [OWNER-INFO] Saving owner_name to database: "${updateData.owner_name}"`)
         }
-        
+
         if (ownerInfo.mailingAddress && ownerInfo.mailingAddress.trim() !== '') {
           updateData.mailing_address = ownerInfo.mailingAddress.trim()
           console.log(`💾 [OWNER-INFO] Saving mailing_address to database: "${updateData.mailing_address}"`)
         }
-        
+
         if (Object.keys(updateData).length === 0) {
           return // Nothing to update
         }
-        
+
         let updated = false
-        
+
         // Try to update by listing_link first (most reliable)
         if (listingLink) {
           const { data: updateResult, error: updateError } = await dbClient
@@ -2029,7 +2031,7 @@ export async function GET(request: NextRequest) {
             .update(updateData)
             .eq('listing_link', listingLink)
             .select('id, owner_name, mailing_address')
-          
+
           if (updateError) {
             console.warn(`⚠️ Failed to update by listing_link: ${updateError.message}`)
           } else if (updateResult && updateResult.length > 0) {
@@ -2046,12 +2048,12 @@ export async function GET(request: NextRequest) {
             console.warn(`⚠️ No listing found with listing_link: ${listingLink}`)
           }
         }
-        
+
         // If not updated yet, try by address
         if (!updated && address) {
           // Normalize address for matching
           const normalizedAddr = address.toLowerCase().trim().replace(/\s+/g, ' ')
-          
+
           // Try to find and update by address
           const { data: updateResult, error: updateError } = await dbClient
             .from('listings')
@@ -2059,7 +2061,7 @@ export async function GET(request: NextRequest) {
             .ilike('address', `%${normalizedAddr}%`)
             .select('id, address, owner_name, mailing_address')
             .limit(1)
-          
+
           if (updateError) {
             console.warn(`⚠️ Failed to update by address: ${updateError.message}`)
           } else if (updateResult && updateResult.length > 0) {
@@ -2076,7 +2078,7 @@ export async function GET(request: NextRequest) {
             console.warn(`⚠️ No listing found with address: ${address}`)
           }
         }
-        
+
         if (!updated) {
           console.warn(`⚠️ Could not save to database - listing not found`)
         }
@@ -2086,7 +2088,7 @@ export async function GET(request: NextRequest) {
         // Don't fail the request if save fails
       }
     }
-    
+
     return NextResponse.json({
       ...ownerInfo,
       allEmails: Array.isArray(allEmails) ? allEmails : [],
@@ -2109,9 +2111,9 @@ export async function GET(request: NextRequest) {
   } catch (error: any) {
     console.error('Error fetching owner info:', error)
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch owner information',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     )

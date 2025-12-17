@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic'
+
 // API route to serve Zillow FRBO listings from Supabase
 export async function GET() {
   try {

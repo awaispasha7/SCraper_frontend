@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic'
+
 // API route to serve Apartments listings from Supabase
 export async function GET() {
   try {
@@ -28,7 +30,7 @@ export async function GET() {
             const convertToString = (val: any): string => {
               return val !== null && val !== undefined ? String(val) : ''
             }
-            
+
             // Map CSV columns to frontend format
             // listing_url -> listing_link
             // title or full_address -> address
@@ -36,7 +38,7 @@ export async function GET() {
             // owner_name, owner_email, phone_numbers -> fetch from Supabase
             // Note: CSV columns: listing_url, title, price, beds, baths, sqft, owner_name, owner_email, phone_numbers, full_address, street, city, state, zip_code, neighborhood, description
             const address = listing.full_address || listing.title || 'Address Not Available'
-            
+
             // Parse owner_email - handle JSONB array or string format (similar to FSBO)
             let emails: string[] = []
             if (listing.owner_email) {
@@ -51,7 +53,7 @@ export async function GET() {
                 }
               }
             }
-            
+
             // Parse phone_numbers - handle JSONB array, comma-separated string, or single string
             let phones: string[] = []
             if (listing.phone_numbers) {
@@ -66,7 +68,7 @@ export async function GET() {
                 }
               }
             }
-            
+
             return {
               id: listing.id,
               address: address,

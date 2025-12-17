@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 
+export const dynamic = 'force-dynamic'
+
 // Only fetch email and phone from Supabase database - no other sources
 
 export async function GET() {
   try {
     // Use admin client if available for faster queries
     const dbClient = supabaseAdmin || supabase
-    
+
     // Check if Supabase client is initialized
     if (!dbClient) {
       return NextResponse.json(
-        { 
+        {
           error: 'Database not configured',
           details: 'Supabase client not initialized. Please set SUPABASE_URL and SUPABASE_ANON_KEY in .env'
         },
@@ -61,7 +63,7 @@ export async function GET() {
           }
         }
       }
-      
+
       // Parse owner_phones from Supabase (handle JSONB format) - optimized
       let phones: string[] = []
       if (listing.owner_phones) {
@@ -76,7 +78,7 @@ export async function GET() {
           }
         }
       }
-      
+
       // Return listing with email/phone from Supabase (or empty arrays if not found)
       // Also ensure owner_name and mailing_address are properly passed through
       // Ensure all numeric fields are properly converted to strings for display
@@ -109,9 +111,9 @@ export async function GET() {
   } catch (error: any) {
     console.error('Error reading listings:', error)
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to fetch listings',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     )

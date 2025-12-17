@@ -126,8 +126,8 @@ export default function ScraperRunButton({
             <button
                 onClick={handleClick}
                 className={`flex items-center justify-center gap-2 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 border-2 rounded-lg transition-all duration-200 font-medium shadow-sm hover:shadow-md text-sm sm:text-base min-h-[44px] ${isRunning
-                        ? 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
-                        : colorClasses[color]
+                    ? 'bg-red-50 border-red-300 text-red-700 hover:bg-red-100'
+                    : colorClasses[color]
                     }`}
             >
                 {isRunning ? (

@@ -3,6 +3,8 @@ import { supabase, supabaseAdmin } from '@/lib/supabase'
 import fs from 'fs'
 import path from 'path'
 
+export const dynamic = 'force-dynamic'
+
 // API route to serve Redfin listings from Supabase (with CSV/JSON fallback)
 export async function GET() {
   try {
@@ -27,7 +29,7 @@ export async function GET() {
             const convertToString = (val: any): string => {
               return val !== null && val !== undefined ? String(val) : ''
             }
-            
+
             return {
               id: listing.id,
               address: listing.address || 'Address Not Available',
@@ -101,7 +103,7 @@ export async function GET() {
       try {
         if (fs.existsSync(filePathAttempt)) {
           const fileContent = fs.readFileSync(filePathAttempt, 'utf-8')
-          
+
           if (filePathAttempt.endsWith('.csv')) {
             // Parse CSV
             jsonData = parseCSV(fileContent)
@@ -109,7 +111,7 @@ export async function GET() {
             // Parse JSON
             jsonData = JSON.parse(fileContent)
           }
-          
+
           filePath = filePathAttempt
           console.log(`✅ Found Redfin data file at: ${filePath}`)
           break
@@ -142,33 +144,33 @@ export async function GET() {
         listing.state || listing.State || 'IL',
         listing.zip || listing.Zip || listing.ZIP || ''
       ].filter(Boolean)
-      
+
       const fullAddress = addressParts.join(', ')
-      
+
       // Extract price (handle both number and string)
       let price = listing.price_usd || listing.price || listing.Price || listing.priceUSD || ''
       if (typeof price === 'number') {
         price = price.toString()
       }
-      
+
       // Extract beds
       const beds = listing.beds || listing.Beds || listing.bedrooms || listing.Bedrooms || ''
       const bedsStr = beds !== null && beds !== undefined ? String(beds) : ''
-      
+
       // Extract baths
       const baths = listing.baths || listing.Baths || listing.bathrooms || listing.Bathrooms || ''
       const bathsStr = baths !== null && baths !== undefined ? String(baths) : ''
-      
+
       // Extract square feet
       const sqft = listing.sqft || listing.Sqft || listing.square_feet || listing.Square_Feet || listing.squareFeet || ''
       const sqftStr = sqft !== null && sqft !== undefined ? String(sqft) : ''
-      
+
       // Extract listing link
       const listingLink = listing.listing_url || listing.listingUrl || listing.listing_link || listing.url || listing.URL || ''
-      
+
       // Extract property type
       const propertyType = listing.property_type || listing.Property_Type || listing.propertyType || listing.type || ''
-      
+
       return {
         id: index + 1,
         address: fullAddress || listing.address || `Listing ${index + 1}`,
@@ -220,11 +222,11 @@ function parseCSV(csvContent: string): any[] {
   const lines: string[] = []
   let currentLine = ''
   let inQuotes = false
-  
+
   for (let i = 0; i < csvContent.length; i++) {
     const char = csvContent[i]
     const nextChar = csvContent[i + 1]
-    
+
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
         // Escaped quote
@@ -245,19 +247,19 @@ function parseCSV(csvContent: string): any[] {
       currentLine += char
     }
   }
-  
+
   // Add last line if exists
   if (currentLine.trim()) {
     lines.push(currentLine)
   }
-  
+
   if (lines.length < 2) return []
-  
+
   // Parse header
   const headers: string[] = []
   let currentHeader = ''
   inQuotes = false
-  
+
   for (let i = 0; i < lines[0].length; i++) {
     const char = lines[0][i]
     if (char === '"') {
@@ -270,20 +272,20 @@ function parseCSV(csvContent: string): any[] {
     }
   }
   headers.push(currentHeader.trim().replace(/^"|"$/g, ''))
-  
+
   // Parse data rows
   const data: any[] = []
   for (let i = 1; i < lines.length; i++) {
     if (!lines[i].trim()) continue
-    
+
     const values: string[] = []
     let currentValue = ''
     inQuotes = false
-    
+
     for (let j = 0; j < lines[i].length; j++) {
       const char = lines[i][j]
       const nextChar = lines[i][j + 1]
-      
+
       if (char === '"') {
         if (inQuotes && nextChar === '"') {
           // Escaped quote
@@ -301,7 +303,7 @@ function parseCSV(csvContent: string): any[] {
       }
     }
     values.push(currentValue.trim().replace(/^"|"$/g, '').replace(/""/g, '"'))
-    
+
     // Validate that we have the correct number of columns
     if (values.length !== headers.length) {
       console.warn(`⚠️  Row ${i + 1} has ${values.length} values but expected ${headers.length} columns`)
@@ -310,7 +312,7 @@ function parseCSV(csvContent: string): any[] {
         values.push('')
       }
     }
-    
+
     // Create object from headers and values
     const row: any = {}
     headers.forEach((header, index) => {
@@ -325,7 +327,7 @@ function parseCSV(csvContent: string): any[] {
     })
     data.push(row)
   }
-  
+
   console.log(`✅ Parsed ${data.length} listings from CSV`)
   return data
 }

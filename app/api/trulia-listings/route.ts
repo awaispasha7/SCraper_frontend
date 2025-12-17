@@ -3,6 +3,8 @@ import { supabase, supabaseAdmin } from '@/lib/supabase'
 import fs from 'fs'
 import path from 'path'
 
+export const dynamic = 'force-dynamic'
+
 // API route to serve Trulia listings from Supabase (with JSON fallback)
 export async function GET() {
   try {
@@ -27,7 +29,7 @@ export async function GET() {
             const convertToString = (val: any): string => {
               return val !== null && val !== undefined ? String(val) : ''
             }
-            
+
             return {
               id: listing.id,
               address: listing.address || 'Address Not Available',
@@ -92,7 +94,7 @@ export async function GET() {
       try {
         if (fs.existsSync(filePathAttempt)) {
           const fileContent = fs.readFileSync(filePathAttempt, 'utf-8')
-          
+
           if (filePathAttempt.endsWith('.csv')) {
             // Parse CSV
             jsonData = parseCSV(fileContent)
@@ -100,7 +102,7 @@ export async function GET() {
             // Parse JSON
             jsonData = JSON.parse(fileContent)
           }
-          
+
           filePath = filePathAttempt
           console.log(`✅ Found Trulia data file at: ${filePath}`)
           break
@@ -180,12 +182,12 @@ export async function GET() {
 function parseCSV(csvContent: string): any[] {
   const lines = csvContent.split('\n').filter(line => line.trim())
   if (lines.length < 2) return []
-  
+
   // Parse header
   const headers: string[] = []
   let currentHeader = ''
   let inQuotes = false
-  
+
   for (let i = 0; i < lines[0].length; i++) {
     const char = lines[0][i]
     if (char === '"') {
@@ -198,16 +200,16 @@ function parseCSV(csvContent: string): any[] {
     }
   }
   headers.push(currentHeader.trim().replace(/^"|"$/g, ''))
-  
+
   // Parse data rows
   const data: any[] = []
   for (let i = 1; i < lines.length; i++) {
     if (!lines[i].trim()) continue
-    
+
     const values: string[] = []
     let currentValue = ''
     inQuotes = false
-    
+
     for (let j = 0; j < lines[i].length; j++) {
       const char = lines[i][j]
       if (char === '"') {
@@ -220,7 +222,7 @@ function parseCSV(csvContent: string): any[] {
       }
     }
     values.push(currentValue.trim().replace(/^"|"$/g, '').replace(/""/g, '"'))
-    
+
     // Create object from headers and values
     const row: any = {}
     headers.forEach((header, index) => {
@@ -235,7 +237,7 @@ function parseCSV(csvContent: string): any[] {
     })
     data.push(row)
   }
-  
+
   return data
 }
 
