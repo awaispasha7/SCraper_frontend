@@ -7,15 +7,15 @@ import { syncListingsWithSupabase } from '@/lib/supabase-sync'
 export async function POST() {
   try {
     console.log('🔄 Manual sync triggered via API')
-    
+
     // Check if backend URL is configured
     const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || process.env.BACKEND_URL
-    
+
     if (backendUrl) {
       // Use backend API if configured
       console.log('🌐 Using backend API:', backendUrl)
       console.log('📋 Process: Trigger Backend Scraper → Backend stores in Database')
-      
+
       try {
         const response = await fetch(`${backendUrl}/api/trigger`, {
           method: 'POST',
@@ -23,14 +23,14 @@ export async function POST() {
             'Content-Type': 'application/json',
           },
         })
-        
+
         if (!response.ok) {
           throw new Error(`Backend API returned ${response.status}`)
         }
-        
+
         const result = await response.json()
         console.log('✅ Backend scraper triggered:', result)
-        
+
         return NextResponse.json({
           success: true,
           message: 'Backend scraper triggered successfully',
@@ -42,12 +42,12 @@ export async function POST() {
         // Fall through to check Supabase
       }
     }
-    
+
     // In deployment, we don't run the scraper - just check Supabase and return success
     // The data is already in Supabase, so we just need to tell the frontend to fetch it
     console.log('📋 Process: Fetching listings from Supabase')
     console.log('💡 Listings are already stored in Supabase')
-    
+
     try {
       // Get count of listings from Supabase to return in stats
       const { supabase } = await import('@/lib/supabase')
@@ -55,11 +55,11 @@ export async function POST() {
         const { data: listings, error: countError } = await supabase
           .from('listings')
           .select('id', { count: 'exact', head: true })
-        
+
         const totalCount = countError ? 0 : (listings as any)?.length || 0
-        
+
         console.log(`✅ Found ${totalCount} listings in Supabase`)
-        
+
         return NextResponse.json({
           success: true,
           message: 'Listings are available in Supabase',
@@ -78,7 +78,7 @@ export async function POST() {
     } catch (supabaseError: any) {
       console.warn('⚠️ Error checking Supabase, returning success anyway:', supabaseError.message)
     }
-    
+
     // Return success even if we can't check Supabase - the frontend will fetch from /api/listings
     return NextResponse.json({
       success: true,
@@ -97,9 +97,9 @@ export async function POST() {
   } catch (error: any) {
     console.error('❌ Error syncing listings:', error)
     return NextResponse.json(
-      { 
+      {
         error: 'Failed to sync listings',
-        details: error.message 
+        details: error.message
       },
       { status: 500 }
     )
@@ -109,12 +109,12 @@ export async function POST() {
 export async function GET() {
   // Return status of last sync
   try {
-    const jsonPath = path.join(process.cwd(), '..', 'forsalebyowner_listings.json')
-    
+    const jsonPath = path.join(process.cwd(), '..', 'Scraper_backend', 'FSBO_Scraper', 'forsalebyowner_listings.json')
+
     if (fs.existsSync(jsonPath)) {
       const stats = fs.statSync(jsonPath)
       const fileContent = JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))
-      
+
       return NextResponse.json({
         lastSync: fileContent.scrape_timestamp || stats.mtime.toISOString(),
         fileExists: true,

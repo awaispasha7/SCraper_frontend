@@ -34,38 +34,30 @@ if (!INPUT_EXCEL) {
 const OUTPUT_CSV = path.join(path.dirname(INPUT_EXCEL), 'trulia_listings_enriched.csv')
 
 // Convert Excel to CSV
-function convertExcelToCSV(excelPath, csvPath) {
+async function convertExcelToCSV(excelPath, csvPath) {
   console.log(`📖 Reading Excel file: ${excelPath}`)
-  
-  const workbook = XLSX.readFile(excelPath)
-  const sheetName = workbook.SheetNames[0] // Get first sheet
-  const worksheet = workbook.Sheets[sheetName]
-  
-  console.log(`✅ Found sheet: ${sheetName}`)
-  
-  // Convert to CSV - using the default options which preserve data as-is
-  const csvContent = XLSX.utils.sheet_to_csv(worksheet, {
-    blankrows: true, // Include blank rows
-    defval: '', // Default value for empty cells
-    FS: ',', // Field separator (comma)
-    RS: '\n', // Record separator (newline)
-    strip: false, // Don't strip whitespace
-    raw: false, // Use formatted values
-  })
-  
-  // Write CSV file
-  fs.writeFileSync(csvPath, csvContent, 'utf-8')
-  
+
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(excelPath)
+
+  console.log(`✅ Workbook loaded successfully`)
+
+  // Write to CSV
+  // ExcelJS's workbook.csv.writeFile method writes the first worksheet to CSV by default.
+  // It attempts to preserve formatting and data types where possible.
+  await workbook.csv.writeFile(csvPath)
+
   console.log(`✅ CSV file created: ${csvPath}`)
-  
-  // Count rows
+
+  // Read back for statistics
+  const csvContent = fs.readFileSync(csvPath, 'utf-8')
   const lines = csvContent.split('\n').filter(line => line.trim())
   const rowCount = lines.length - 1 // Subtract header row
-  
+
   console.log(`📊 Statistics:`)
   console.log(`   - Total rows (including header): ${lines.length}`)
   console.log(`   - Data rows: ${rowCount}`)
-  
+
   // Show first few lines as preview
   if (lines.length > 0) {
     console.log(`\n📝 Preview (first 3 lines):`)
@@ -74,19 +66,19 @@ function convertExcelToCSV(excelPath, csvPath) {
       console.log(`   ${i + 1}. ${preview}`)
     })
   }
-  
+
   return csvPath
 }
 
 // Main function
-function main() {
+async function main() {
   console.log('🚀 Converting Trulia Excel file to CSV...')
   console.log(`📁 Input file: ${INPUT_EXCEL}`)
   console.log(`📁 Output file: ${OUTPUT_CSV}`)
   console.log('')
-  
+
   try {
-    convertExcelToCSV(INPUT_EXCEL, OUTPUT_CSV)
+    await convertExcelToCSV(INPUT_EXCEL, OUTPUT_CSV)
     console.log('')
     console.log('✅ Conversion complete!')
     console.log(`   CSV file saved at: ${OUTPUT_CSV}`)

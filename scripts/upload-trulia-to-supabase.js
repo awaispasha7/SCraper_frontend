@@ -8,7 +8,7 @@
 
 const fs = require('fs')
 const path = require('path')
-const XLSX = require('xlsx')
+const ExcelJS = require('exceljs')
 const { createClient } = require('@supabase/supabase-js')
 
 // Load environment variables
@@ -83,11 +83,11 @@ function parseCSV(csvContent) {
   const lines = []
   let currentLine = ''
   let inQuotes = false
-  
+
   for (let i = 0; i < csvContent.length; i++) {
     const char = csvContent[i]
     const nextChar = csvContent[i + 1]
-    
+
     if (char === '"') {
       if (inQuotes && nextChar === '"') {
         // Escaped quote
@@ -108,19 +108,19 @@ function parseCSV(csvContent) {
       currentLine += char
     }
   }
-  
+
   // Add last line if exists
   if (currentLine.trim()) {
     lines.push(currentLine)
   }
-  
+
   if (lines.length < 2) return { headers: [], data: [] }
-  
+
   // Parse header
   const headers = []
   let currentHeader = ''
   inQuotes = false
-  
+
   for (let i = 0; i < lines[0].length; i++) {
     const char = lines[0][i]
     if (char === '"') {
@@ -133,20 +133,20 @@ function parseCSV(csvContent) {
     }
   }
   headers.push(currentHeader.trim().replace(/^"|"$/g, ''))
-  
+
   // Parse data rows
   const data = []
   for (let i = 1; i < lines.length; i++) {
     if (!lines[i].trim()) continue
-    
+
     const values = []
     let currentValue = ''
     inQuotes = false
-    
+
     for (let j = 0; j < lines[i].length; j++) {
       const char = lines[i][j]
       const nextChar = lines[i][j + 1]
-      
+
       if (char === '"') {
         if (inQuotes && nextChar === '"') {
           // Escaped quote
@@ -164,7 +164,7 @@ function parseCSV(csvContent) {
       }
     }
     values.push(currentValue.trim().replace(/^"|"$/g, '').replace(/""/g, '"'))
-    
+
     // Validate that we have the correct number of columns
     if (values.length !== headers.length) {
       console.warn(`⚠️  Row ${i + 1} has ${values.length} values but expected ${headers.length} columns`)
@@ -173,7 +173,7 @@ function parseCSV(csvContent) {
         values.push('')
       }
     }
-    
+
     // Create object from headers and values
     const row = {}
     headers.forEach((header, index) => {
@@ -181,32 +181,48 @@ function parseCSV(csvContent) {
     })
     data.push(row)
   }
-  
+
   return { headers, data }
 }
 
 // Parse Excel file
-function parseExcel(filePath) {
+async function parseExcel(filePath) {
   console.log(`📖 Reading Excel file: ${filePath}`)
-  
-  const workbook = XLSX.readFile(filePath)
-  const sheetName = workbook.SheetNames[0] // Get first sheet
-  const worksheet = workbook.Sheets[sheetName]
-  
-  // Convert to JSON
-  const data = XLSX.utils.sheet_to_json(worksheet, { defval: null })
-  
+
+  const workbook = new ExcelJS.Workbook()
+  await workbook.xlsx.readFile(filePath)
+  const worksheet = workbook.getWorksheet(1) // Get first sheet
+
+  const data = []
+  const headers = []
+
+  // Get headers from first row
+  worksheet.getRow(1).eachCell({ includeEmpty: true }, (cell) => {
+    headers.push(cell.value)
+  })
+
+  // Parse data rows
+  worksheet.eachRow((row, rowNumber) => {
+    if (rowNumber === 1) return // Skip header
+
+    const rowData = {}
+    row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+      const header = headers[colNumber - 1]
+      if (header) {
+        rowData[header] = cell.value
+      }
+    })
+    data.push(rowData)
+  })
+
   if (data.length === 0) {
     console.warn('⚠️  No data found in Excel file')
-    return { headers: [], data: [] }
+    return { headers, data: [] }
   }
-  
-  // Get headers from first row
-  const headers = Object.keys(data[0])
-  
+
   console.log(`✅ Found ${data.length} listings`)
   console.log(`📋 Columns: ${headers.join(', ')}`)
-  
+
   return { headers, data }
 }
 
@@ -215,36 +231,36 @@ async function uploadToSupabase(listings) {
   console.log('📤 Uploading to Supabase trulia_listings table...')
   console.log('   📧 Including emails and phones from file...')
   console.log('')
-  
+
   const timestamp = new Date().toISOString()
   let successCount = 0
   let errorCount = 0
   let updatedCount = 0
   let insertedCount = 0
-  
+
   for (let i = 0; i < listings.length; i++) {
     const listing = listings[i]
-    
+
     try {
       // Prepare listing data for Supabase - map Excel columns to database columns
       // Handle various possible column name variations
       const listingData = {
         address: listing.address || listing.Address || listing['Property Address'] || null,
-        price: listing.price || listing.Price || listing['Listing Price'] ? 
-          (typeof (listing.price || listing.Price || listing['Listing Price']) === 'string' ? 
-            parseFloat(String(listing.price || listing.Price || listing['Listing Price']).replace(/[^0-9.]/g, '')) : 
+        price: listing.price || listing.Price || listing['Listing Price'] ?
+          (typeof (listing.price || listing.Price || listing['Listing Price']) === 'string' ?
+            parseFloat(String(listing.price || listing.Price || listing['Listing Price']).replace(/[^0-9.]/g, '')) :
             parseFloat(listing.price || listing.Price || listing['Listing Price'])) : null,
-        beds: listing.beds || listing.Beds || listing.bedrooms || listing.Bedrooms || listing['Number of Bedrooms'] ? 
-          (typeof (listing.beds || listing.Beds || listing.bedrooms || listing.Bedrooms || listing['Number of Bedrooms']) === 'string' ? 
-            parseFloat(String(listing.beds || listing.Beds || listing.bedrooms || listing.Bedrooms || listing['Number of Bedrooms']).replace(/[^0-9.]/g, '')) : 
+        beds: listing.beds || listing.Beds || listing.bedrooms || listing.Bedrooms || listing['Number of Bedrooms'] ?
+          (typeof (listing.beds || listing.Beds || listing.bedrooms || listing.Bedrooms || listing['Number of Bedrooms']) === 'string' ?
+            parseFloat(String(listing.beds || listing.Beds || listing.bedrooms || listing.Bedrooms || listing['Number of Bedrooms']).replace(/[^0-9.]/g, '')) :
             parseFloat(listing.beds || listing.Beds || listing.bedrooms || listing.Bedrooms || listing['Number of Bedrooms'])) : null,
-        baths: listing.baths || listing.Baths || listing.bathrooms || listing.Bathrooms || listing['Number of Bathrooms'] ? 
-          (typeof (listing.baths || listing.Baths || listing.bathrooms || listing.Bathrooms || listing['Number of Bathrooms']) === 'string' ? 
-            parseFloat(String(listing.baths || listing.Baths || listing.bathrooms || listing.Bathrooms || listing['Number of Bathrooms']).replace(/[^0-9.]/g, '')) : 
+        baths: listing.baths || listing.Baths || listing.bathrooms || listing.Bathrooms || listing['Number of Bathrooms'] ?
+          (typeof (listing.baths || listing.Baths || listing.bathrooms || listing.Bathrooms || listing['Number of Bathrooms']) === 'string' ?
+            parseFloat(String(listing.baths || listing.Baths || listing.bathrooms || listing.Bathrooms || listing['Number of Bathrooms']).replace(/[^0-9.]/g, '')) :
             parseFloat(listing.baths || listing.Baths || listing.bathrooms || listing.Bathrooms || listing['Number of Bathrooms'])) : null,
-        square_feet: listing.square_feet || listing['Square Feet'] || listing.sqft || listing.Sqft || listing['Square Footage'] ? 
-          (typeof (listing.square_feet || listing['Square Feet'] || listing.sqft || listing.Sqft || listing['Square Footage']) === 'string' ? 
-            parseFloat(String(listing.square_feet || listing['Square Feet'] || listing.sqft || listing.Sqft || listing['Square Footage']).replace(/[^0-9.]/g, '')) : 
+        square_feet: listing.square_feet || listing['Square Feet'] || listing.sqft || listing.Sqft || listing['Square Footage'] ?
+          (typeof (listing.square_feet || listing['Square Feet'] || listing.sqft || listing.Sqft || listing['Square Footage']) === 'string' ?
+            parseFloat(String(listing.square_feet || listing['Square Feet'] || listing.sqft || listing.Sqft || listing['Square Footage']).replace(/[^0-9.]/g, '')) :
             parseFloat(listing.square_feet || listing['Square Feet'] || listing.sqft || listing.Sqft || listing['Square Footage'])) : null,
         listing_link: listing.listing_link || listing['Listing Link'] || listing.url || listing.URL || listing['Listing URL'] || null,
         property_type: listing.property_type || listing['Property Type'] || listing.PropertyType || null,
@@ -256,14 +272,14 @@ async function uploadToSupabase(listings) {
         phones: listing.phones || listing['Phones'] || listing.phone || listing.Phone || null,  // Store phones as text
         scrape_date: listing.scrape_date || listing['Scrape Date'] || listing.scrapeDate || null,
       }
-      
+
       // Remove null/undefined values that are actually null
       Object.keys(listingData).forEach(key => {
         if (listingData[key] === null || listingData[key] === undefined || listingData[key] === '') {
           listingData[key] = null
         }
       })
-      
+
       // Check if listing exists (by listing_link or address)
       let existing = null
       if (listingData.listing_link) {
@@ -272,12 +288,12 @@ async function uploadToSupabase(listings) {
           .select('id, listing_link')
           .eq('listing_link', listingData.listing_link)
           .maybeSingle()
-        
+
         if (!fetchError && data) {
           existing = data
         }
       }
-      
+
       // If not found by listing_link, try by address
       if (!existing && listingData.address) {
         const { data, error: fetchError } = await supabase
@@ -285,21 +301,21 @@ async function uploadToSupabase(listings) {
           .select('id, listing_link')
           .eq('address', listingData.address)
           .maybeSingle()
-        
+
         if (!fetchError && data) {
           existing = data
         }
       }
-      
+
       if (existing) {
         // Update existing listing
         let updateData = { ...listingData }
-        
+
         const { error: updateError } = await supabase
           .from('trulia_listings')
           .update(updateData)
           .eq('id', existing.id)
-        
+
         if (updateError) {
           // Check if error is about missing emails/phones columns
           if (updateError.message.includes('emails') || updateError.message.includes('phones')) {
@@ -309,7 +325,7 @@ async function uploadToSupabase(listings) {
               .from('trulia_listings')
               .update(dataWithoutContacts)
               .eq('id', existing.id)
-            
+
             if (retryError) {
               console.error(`   ❌ Failed to update: ${retryError.message}`)
               throw retryError
@@ -328,7 +344,7 @@ async function uploadToSupabase(listings) {
         const { error: error1 } = await supabase
           .from('trulia_listings')
           .insert(listingData)
-        
+
         if (error1) {
           // If column doesn't exist, try without emails/phones
           if (error1.message.includes('emails') || error1.message.includes('phones')) {
@@ -337,7 +353,7 @@ async function uploadToSupabase(listings) {
             const { error: error2 } = await supabase
               .from('trulia_listings')
               .insert(dataWithoutContacts)
-            
+
             if (error2) {
               insertError = error2
             } else {
@@ -347,7 +363,7 @@ async function uploadToSupabase(listings) {
             insertError = error1
           }
         }
-        
+
         if (insertError) {
           // If table doesn't exist, provide helpful error
           if (insertError.message.includes('relation "trulia_listings" does not exist')) {
@@ -366,7 +382,7 @@ async function uploadToSupabase(listings) {
         successCount++
         console.log(`   ✅ Inserted: ${listingData.address?.substring(0, 50) || 'N/A'}...`)
       }
-      
+
       // Show progress
       if ((i + 1) % 5 === 0 || i === listings.length - 1) {
         console.log(`   Progress: ${i + 1}/${listings.length} listings processed...`)
@@ -377,7 +393,7 @@ async function uploadToSupabase(listings) {
       errorCount++
     }
   }
-  
+
   console.log(`\n✅ Upload complete!`)
   console.log(`   Total listings in file: ${listings.length}`)
   console.log(`   Successfully uploaded: ${successCount}`)
@@ -392,7 +408,7 @@ async function main() {
   console.log(`📁 Input file: ${INPUT_FILE} (${FILE_TYPE.toUpperCase()})`)
   console.log(`🔗 Supabase URL: ${supabaseUrl}`)
   console.log('')
-  
+
   // Read and parse file
   let headers, data
   if (FILE_TYPE === 'csv') {
@@ -402,16 +418,16 @@ async function main() {
     headers = result.headers
     data = result.data
   } else {
-    const result = parseExcel(INPUT_FILE)
+    const result = await parseExcel(INPUT_FILE)
     headers = result.headers
     data = result.data
   }
-  
+
   if (data.length === 0) {
     console.error('❌ No data found in file')
     process.exit(1)
   }
-  
+
   // Debug: Show first few addresses to verify parsing
   if (data.length > 0) {
     console.log('\n📝 Sample listings (first 3):')
@@ -420,19 +436,19 @@ async function main() {
       console.log(`   ${i + 1}. ${address.substring(0, 60)}...`)
     })
   }
-  
+
   // Check for duplicate listing_links
   const listingLinks = data.map(l => l.listing_link || l['Listing Link'] || l.url || l.URL).filter(Boolean)
   const uniqueLinks = new Set(listingLinks)
   if (listingLinks.length !== uniqueLinks.size) {
     console.warn(`\n⚠️  WARNING: Found ${listingLinks.length - uniqueLinks.size} duplicate listing_links`)
   }
-  
+
   console.log('')
-  
+
   // Upload to Supabase
   await uploadToSupabase(data)
-  
+
   console.log('')
   console.log('✅ Done!')
 }

@@ -68,19 +68,19 @@ function areListingsSame(listing1: Listing, listing2: Listing): boolean {
   // Primary: Compare normalized listing links
   const link1 = normalizeLink(listing1.listing_link)
   const link2 = normalizeLink(listing2.listing_link)
-  
+
   if (link1 && link2 && link1 === link2) {
     return true
   }
-  
+
   // Fallback: Compare normalized addresses
   const addr1 = normalizeAddress(listing1.address)
   const addr2 = normalizeAddress(listing2.address)
-  
+
   if (addr1 && addr2 && addr1 === addr2) {
     return true
   }
-  
+
   return false
 }
 
@@ -89,16 +89,16 @@ function areListingsSame(listing1: Listing, listing2: Listing): boolean {
  */
 function hasListingChanged(oldListing: Listing, newListing: Listing): boolean {
   const fields: (keyof Listing)[] = ['address', 'price', 'beds', 'baths', 'square_feet', 'time_of_post']
-  
+
   for (const field of fields) {
     const oldValue = String(oldListing[field] || '').trim()
     const newValue = String(newListing[field] || '').trim()
-    
+
     if (oldValue !== newValue) {
       return true
     }
   }
-  
+
   return false
 }
 
@@ -106,40 +106,40 @@ function hasListingChanged(oldListing: Listing, newListing: Listing): boolean {
  * Run the Python scraper and get fresh data
  */
 async function runScraper(): Promise<Listing[]> {
-  const scraperPath = path.join(process.cwd(), '..', 'forsalebyowner_selenium_scraper.py')
-  
+  const scraperPath = path.join(process.cwd(), '..', 'Scraper_backend', 'FSBO_Scraper', 'forsalebyowner_selenium_scraper.py')
+
   if (!fs.existsSync(scraperPath)) {
     throw new Error(`Scraper file not found: ${scraperPath}`)
   }
-  
+
   const startTime = Date.now()
-  
+
   try {
     // Ensure we use Anaconda Python by prepending it to PATH
     const env = { ...process.env }
     const anacondaPath = 'C:\\Users\\Admin\\anaconda3'
     const anacondaScripts = `${anacondaPath};${anacondaPath}\\Scripts;${anacondaPath}\\Library\\bin`
     env.PATH = `${anacondaScripts};${env.PATH || ''}`
-    
+
     const { stdout, stderr } = await execAsync(`python "${scraperPath}"`, {
       cwd: path.dirname(scraperPath),
       env: env,
       maxBuffer: 50 * 1024 * 1024 // 50MB buffer for large outputs
     })
-    
+
     const duration = Math.round((Date.now() - startTime) / 1000)
-    
+
     // Log only errors from scraper output
     if (stdout) {
       const lines = stdout.split('\n')
-      const errorLines = lines.filter(line => 
+      const errorLines = lines.filter(line =>
         line.includes('ERROR') ||
         line.includes('Error') ||
         line.includes('❌') ||
         line.includes('Failed') ||
         line.includes('Exception')
       )
-      
+
       if (errorLines.length > 0) {
         console.error('❌ Scraper errors:')
         errorLines.forEach(msg => {
@@ -149,7 +149,7 @@ async function runScraper(): Promise<Listing[]> {
         })
       }
     }
-    
+
     if (stderr) {
       console.warn('⚠️ Scraper stderr:', stderr.substring(0, 1000))
       // Check for API connection errors
@@ -164,22 +164,22 @@ async function runScraper(): Promise<Listing[]> {
         console.error('   See SETUP_DATABASE.md for instructions')
       }
     }
-    
+
     // Read the scraped data
-    const jsonPath = path.join(process.cwd(), '..', 'forsalebyowner_listings.json')
-    
+    const jsonPath = path.join(process.cwd(), '..', 'Scraper_backend', 'FSBO_Scraper', 'forsalebyowner_listings.json')
+
     if (!fs.existsSync(jsonPath)) {
       throw new Error('Scraper did not generate output file')
     }
-    
+
     const fileContent = fs.readFileSync(jsonPath, 'utf-8')
     const data = JSON.parse(fileContent)
-    
+
     // Handle both old format (list) and new format (with metadata)
     const listings: Listing[] = data.listings || data
-    
+
     return listings
-    
+
   } catch (error: any) {
     console.error('❌ Scraper execution failed:', error.message)
     throw error
@@ -191,21 +191,21 @@ async function runScraper(): Promise<Listing[]> {
  */
 function loadExistingListings(): Listing[] {
   const jsonPath = path.join(process.cwd(), '..', 'forsalebyowner_listings.json')
-  
+
   if (!fs.existsSync(jsonPath)) {
     console.log('📝 No existing database found, will create new one')
     return []
   }
-  
+
   try {
     const fileContent = fs.readFileSync(jsonPath, 'utf-8')
     const data = JSON.parse(fileContent)
-    
+
     // Handle both old format (list) and new format (with metadata)
     const listings: Listing[] = data.listings || data
-    
+
     return listings
-    
+
   } catch (error: any) {
     console.error('❌ Error loading existing listings:', error.message)
     return []
@@ -230,15 +230,15 @@ function syncListings(scrapedListings: Listing[], existingListings: Listing[]): 
     timestamp: new Date().toISOString(),
     duration: 0
   }
-  
+
   // Create maps for quick lookup
   const existingByLink = new Map<string, Listing>()
   const existingByAddress = new Map<string, Listing>()
-  
+
   for (const listing of existingListings) {
     const link = normalizeLink(listing.listing_link)
     const address = normalizeAddress(listing.address)
-    
+
     if (link) {
       existingByLink.set(link, listing)
     }
@@ -246,16 +246,16 @@ function syncListings(scrapedListings: Listing[], existingListings: Listing[]): 
       existingByAddress.set(address, listing)
     }
   }
-  
+
   // Process scraped listings
   const syncedListings: Listing[] = []
   const processedLinks = new Set<string>()
   const processedAddresses = new Set<string>()
-  
+
   for (const scrapedListing of scrapedListings) {
     const link = normalizeLink(scrapedListing.listing_link)
     const address = normalizeAddress(scrapedListing.address)
-    
+
     // Skip duplicates within scraped data
     if (link && processedLinks.has(link)) {
       continue
@@ -263,10 +263,10 @@ function syncListings(scrapedListings: Listing[], existingListings: Listing[]): 
     if (address && processedAddresses.has(address)) {
       continue
     }
-    
+
     let found = false
     let existingListing: Listing | undefined
-    
+
     // Try to find existing listing by link
     if (link && existingByLink.has(link)) {
       existingListing = existingByLink.get(link)!
@@ -277,7 +277,7 @@ function syncListings(scrapedListings: Listing[], existingListings: Listing[]): 
       existingListing = existingByAddress.get(address)!
       found = true
     }
-    
+
     if (found && existingListing) {
       // Check if data changed
       if (hasListingChanged(existingListing, scrapedListing)) {
@@ -294,29 +294,29 @@ function syncListings(scrapedListings: Listing[], existingListings: Listing[]): 
       syncedListings.push(scrapedListing)
       stats.added++
     }
-    
+
     if (link) processedLinks.add(link)
     if (address) processedAddresses.add(address)
   }
-  
+
   // Find removed listings (in existing but not in scraped)
   const scrapedLinks = new Set(scrapedListings.map(l => normalizeLink(l.listing_link)).filter(Boolean))
   const scrapedAddresses = new Set(scrapedListings.map(l => normalizeAddress(l.address)).filter(Boolean))
-  
+
   for (const existingListing of existingListings) {
     const link = normalizeLink(existingListing.listing_link)
     const address = normalizeAddress(existingListing.address)
-    
+
     const linkExists = link && scrapedLinks.has(link)
     const addressExists = address && scrapedAddresses.has(address)
-    
+
     if (!linkExists && !addressExists) {
       stats.removed++
     }
   }
-  
+
   stats.duration = Math.round((Date.now() - startTime) / 1000)
-  
+
   return { syncedListings, stats }
 }
 
@@ -325,7 +325,7 @@ function syncListings(scrapedListings: Listing[], existingListings: Listing[]): 
  */
 function saveSyncedListings(listings: Listing[], stats: SyncStats): void {
   const jsonPath = path.join(process.cwd(), '..', 'forsalebyowner_listings.json')
-  
+
   const outputData = {
     scrape_timestamp: stats.timestamp,
     total_listings: listings.length,
@@ -339,7 +339,7 @@ function saveSyncedListings(listings: Listing[], stats: SyncStats): void {
     },
     listings: listings
   }
-  
+
   fs.writeFileSync(jsonPath, JSON.stringify(outputData, null, 2), 'utf-8')
 }
 
@@ -349,15 +349,15 @@ function saveSyncedListings(listings: Listing[], stats: SyncStats): void {
  */
 export async function refreshListingsAutomatically(): Promise<Listing[]> {
   console.log('🔄 Starting scraper...')
-  
+
   try {
     // Run scraper to get fresh data from website
     const scrapedListings = await runScraper()
-    
+
     console.log(`✅ Scraper complete: ${scrapedListings.length} listings scraped`)
-    
+
     return scrapedListings
-    
+
   } catch (error: any) {
     console.error('❌ Scraper failed:', error.message)
     throw error
