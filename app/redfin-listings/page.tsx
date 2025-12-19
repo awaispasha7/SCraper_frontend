@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
+import ScraperRunButton from '@/app/components/ScraperRunButton'
 import { createClient } from '@/lib/supabase-client'
 
 interface RedfinListing {
@@ -51,6 +52,8 @@ function RedfinListingsPageContent() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('') // Search query for filtering listings
+  const [currentPage, setCurrentPage] = useState(1) // Current page number
+  const listingsPerPage = 20 // Listings per page
 
   const handleLogout = async () => {
     try {
@@ -479,6 +482,12 @@ function RedfinListingsPageContent() {
                 <div className="text-2xl sm:text-3xl font-bold text-red-700">{data.total_listings}</div>
                 <div className="text-xs sm:text-sm text-red-600 font-medium">Total Listings</div>
               </div>
+              <ScraperRunButton
+                scraperId="redfin"
+                scraperName="Redfin"
+                endpoint="/api/trigger-redfin"
+                color="indigo"
+              />
               <div className="flex items-center gap-2 sm:gap-3 flex-1 md:flex-initial">
                 <button
                   onClick={fetchListings}
@@ -517,15 +526,21 @@ function RedfinListingsPageContent() {
                   id="search"
                   type="text"
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value)
+                    setCurrentPage(1) // Reset to first page
+                  }}
                   placeholder="Search"
-                  className="w-full pl-12 pr-4 py-3.5 rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-gray-800 placeholder-gray-400 bg-white focus:bg-white font-medium"
+                  className="w-full pl-12 pr-4 py-3.5 rounded-lg border-2 border-gray-300 focus:border-red-500 focus:ring-2 focus:ring-red-200 outline-none transition-all text-gray-800 placeholder-gray-400 bg-white focus:bg-white font-medium"
                 />
               </div>
             </div>
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
+                onClick={() => {
+                  setSearchQuery('')
+                  setCurrentPage(1)
+                }}
                 className="px-6 py-3.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-all duration-200 whitespace-nowrap text-sm mt-6 md:mt-0 shadow-sm hover:shadow-md"
               >
                 Clear Search
@@ -576,147 +591,232 @@ function RedfinListingsPageContent() {
 
         {/* Listings Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
-          {filteredListings.map((listing) => (
-            <div
-              key={listing.id}
-              className="bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl sm:hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-red-300 transform hover:-translate-y-0.5 sm:hover:-translate-y-1"
-            >
-              <div className="p-4 sm:p-5 lg:p-6">
-                {/* Address */}
-                <div className="mb-3 sm:mb-4">
-                  <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
-                    {listing.address || 'Address Not Available'}
-                  </h3>
-                  <p className="text-gray-500 text-xs sm:text-sm font-medium">{listing.county || 'DuPage County, IL'}</p>
-                </div>
+          {(() => {
+            const totalPages = Math.ceil(filteredListings.length / listingsPerPage)
+            const startIndex = (currentPage - 1) * listingsPerPage
+            const endIndex = startIndex + listingsPerPage
+            const currentListings = filteredListings.slice(startIndex, endIndex)
 
-                {/* Property Type */}
-                {listing.property_type && (
+            return currentListings.map((listing) => (
+              <div
+                key={listing.id}
+                className="bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl sm:hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-red-300 transform hover:-translate-y-0.5 sm:hover:-translate-y-1 flex flex-col h-full"
+              >
+                <div className="p-4 sm:p-5 lg:p-6 flex flex-col h-full">
                   <div className="mb-3 sm:mb-4">
-                    <span className="inline-block bg-red-100 text-red-700 text-xs font-semibold px-2 sm:px-3 py-1 rounded-full">
-                      {listing.property_type}
-                    </span>
+                    <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
+                      {listing.address || 'Address Not Available'}
+                    </h3>
+                    <p className="text-gray-500 text-xs sm:text-sm font-medium">{listing.county || 'DuPage County, IL'}</p>
                   </div>
-                )}
 
-                {/* Property Details - Price, Beds, Baths, Sqft */}
-                <div className="mb-3 sm:mb-4 grid grid-cols-2 gap-2 sm:gap-3">
-                  {/* Price */}
-                  <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Price</div>
-                    <div className="text-sm sm:text-base font-bold text-gray-900">
-                      {formatPrice(listing.price)}
+                  {listing.property_type && (
+                    <div className="mb-3 sm:mb-4">
+                      <span className="inline-block bg-gray-100 text-gray-700 text-xs font-semibold px-2 sm:px-3 py-1 rounded-full">
+                        {listing.property_type}
+                      </span>
                     </div>
-                  </div>
-
-                  {/* Beds */}
-                  <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Beds</div>
-                    <div className="text-sm sm:text-base font-bold text-gray-900">
-                      {formatNumber(listing.beds)}
-                    </div>
-                  </div>
-
-                  {/* Baths */}
-                  <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Baths</div>
-                    <div className="text-sm sm:text-base font-bold text-gray-900">
-                      {formatNumber(listing.baths)}
-                    </div>
-                  </div>
-
-                  {/* Square Feet */}
-                  <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
-                    <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Sqft</div>
-                    <div className="text-sm sm:text-base font-bold text-gray-900">
-                      {formatSquareFeet(listing.square_feet)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Buttons */}
-                <div className="flex flex-col gap-2 sm:gap-3 mt-4 sm:mt-5 lg:mt-6">
-                  {listing.listing_link && (
-                    <a
-                      href={listing.listing_link}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="block w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center focus:outline-none focus:ring-0"
-                    >
-                      <span className="hidden sm:inline">View on Redfin</span>
-                      <span className="sm:hidden">View Listing</span>
-                      <span className="ml-1 sm:ml-2">→</span>
-                    </a>
                   )}
-                  {listing.address && listing.address !== 'Address Not Available' && (
+
+                  <div className="mb-3 sm:mb-4 grid grid-cols-2 gap-2 sm:gap-3">
+                    <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
+                      <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Price</div>
+                      <div className="text-sm sm:text-base font-bold text-gray-900">
+                        {formatPrice(listing.price)}
+                      </div>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
+                      <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Beds/Baths</div>
+                      <div className="text-sm sm:text-base font-bold text-gray-900">
+                        {formatNumber(listing.beds)} bds | {formatNumber(listing.baths)} ba
+                      </div>
+                    </div>
+                  </div>
+
+                  {listing.square_feet && listing.square_feet !== 'no data' && (
+                    <div className="mb-4 bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
+                      <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">Square Feet</div>
+                      <div className="text-sm sm:text-base font-bold text-gray-900">
+                        {formatSquareFeet(listing.square_feet)}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col gap-2 sm:gap-3 mt-auto pt-4 sm:pt-5">
+                    {listing.listing_link && (
+                      <a
+                        href={listing.listing_link}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="block w-full bg-red-50 text-red-700 border border-red-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-red-100 active:bg-red-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center focus:outline-none focus:ring-0"
+                      >
+                        <span className="hidden sm:inline">View on Redfin</span>
+                        <span className="sm:hidden">View Listing</span>
+                        <span className="ml-1 sm:ml-2">→</span>
+                      </a>
+                    )}
+                    {listing.address && (
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault()
+                          if (typeof window !== 'undefined') {
+                            const scrollY = window.scrollY
+                            sessionStorage.setItem('listingScrollPosition', scrollY.toString())
+                            sessionStorage.setItem('listingAddress', listing.address || '')
+                            sessionStorage.setItem('preventScrollRestore', 'true')
+                            sessionStorage.setItem('sourcePage', 'redfin-listings')
+                            const params = new URLSearchParams({
+                              address: listing.address || '',
+                              source: 'redfin'
+                            })
+                            if (listing.listing_link) {
+                              params.append('listing_link', listing.listing_link)
+                            }
+                            window.location.href = `/owner-info?${params.toString()}`
+                          }
+                        }}
+                        className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] focus:outline-none focus:ring-0"
+                      >
+                        <span className="hidden sm:inline">Owner Information</span>
+                        <span className="sm:hidden">Owner Info</span>
+                      </button>
+                    )}
                     <button
                       onClick={(e) => {
                         e.preventDefault()
-
-                        // Store current scroll position before navigation
-                        if (typeof window !== 'undefined') {
-                          const scrollY = window.scrollY
-                          sessionStorage.setItem('listingScrollPosition', scrollY.toString())
-                          sessionStorage.setItem('listingAddress', listing.address || '')
-                          sessionStorage.setItem('preventScrollRestore', 'true')
-                          sessionStorage.setItem('sourcePage', 'redfin-listings')
-
-                          // Navigate to owner-info page
-                          const params = new URLSearchParams({
-                            address: listing.address || '',
-                            source: 'redfin'
-                          })
-                          if (listing.listing_link) {
-                            params.append('listing_link', listing.listing_link)
-                          }
-
-                          window.location.href = `/owner-info?${params.toString()}`
-                        }
+                        handleDownload(listing)
                       }}
-                      className="w-full bg-gray-50 text-gray-700 border border-gray-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-gray-100 active:bg-gray-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] focus:outline-none focus:ring-0"
+                      className="w-full bg-gradient-to-r from-red-50 to-red-100 text-red-700 border border-red-300 text-center py-2.5 sm:py-3 rounded-lg hover:from-red-100 hover:to-red-200 active:from-red-200 active:to-red-300 transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98]"
                     >
-                      <span className="hidden sm:inline">Owner Information</span>
-                      <span className="sm:hidden">Owner Info</span>
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        xmlns="http://www.w3.org/2000/svg"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                        />
+                      </svg>
+                      <span className="hidden sm:inline">Download Details</span>
+                      <span className="sm:hidden">Download</span>
                     </button>
-                  )}
-                  <button
-                    onClick={(e) => {
-                      e.preventDefault()
-                      handleDownload(listing)
-                    }}
-                    className="w-full bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 rounded-lg hover:from-blue-100 hover:to-blue-200 active:from-blue-200 active:to-blue-300 transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98]"
-                  >
-                    <svg
-                      className="w-4 h-4 sm:w-5 sm:h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                      xmlns="http://www.w3.org/2000/svg"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2.5}
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
-                      />
-                    </svg>
-                    <span className="hidden sm:inline">Download Details</span>
-                    <span className="sm:hidden">Download</span>
-                  </button>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            ))
+          })()}
         </div>
 
-        {/* Footer Info */}
+        {/* Pagination Controls */}
+        {(() => {
+          const totalPages = Math.ceil(filteredListings.length / listingsPerPage)
+          if (totalPages <= 1) return null
+
+          // Calculate page numbers to show
+          const maxPagesToShow = 7
+          let startPage = Math.max(1, currentPage - Math.floor(maxPagesToShow / 2))
+          let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1)
+
+          if (endPage - startPage < maxPagesToShow - 1) {
+            startPage = Math.max(1, endPage - maxPagesToShow + 1)
+          }
+
+          const pageNumbers = []
+          for (let i = startPage; i <= endPage; i++) {
+            pageNumbers.push(i)
+          }
+
+          return (
+            <div className="flex justify-center items-center gap-1.5 sm:gap-2 mt-8 sm:mt-12 mb-4 sm:mb-6 flex-wrap">
+              <button
+                onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                disabled={currentPage === 1}
+                className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px]"
+              >
+                <span className="hidden sm:inline">← Prev</span>
+                <span className="sm:hidden">←</span>
+              </button>
+
+              {startPage > 1 && (
+                <>
+                  <button
+                    onClick={() => setCurrentPage(1)}
+                    className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px] min-w-[40px] sm:min-w-[44px]"
+                  >
+                    1
+                  </button>
+                  {startPage > 2 && <span className="text-gray-400 px-1 sm:px-2 text-xs sm:text-sm">...</span>}
+                </>
+              )}
+
+              {pageNumbers.map(pageNum => (
+                <button
+                  key={pageNum}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`px-3 sm:px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-sm active:scale-95 min-w-[40px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] text-xs sm:text-sm ${currentPage === pageNum
+                    ? 'bg-red-600 text-white border border-red-600 hover:bg-red-700'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100'
+                    }`}
+                >
+                  {pageNum}
+                </button>
+              ))}
+
+              {endPage < totalPages && (
+                <>
+                  {endPage < totalPages - 1 && <span className="text-gray-400 px-1 sm:px-2 text-xs sm:text-sm">...</span>}
+                  <button
+                    onClick={() => setCurrentPage(totalPages)}
+                    className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px] min-w-[40px] sm:min-w-[44px]"
+                  >
+                    {totalPages}
+                  </button>
+                </>
+              )}
+
+              <button
+                onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                disabled={currentPage === totalPages}
+                className="bg-white text-gray-700 border border-gray-300 px-3 sm:px-4 py-2 rounded-lg hover:bg-gray-50 active:bg-gray-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[40px] sm:min-h-[44px]"
+              >
+                <span className="hidden sm:inline">Next →</span>
+                <span className="sm:hidden">→</span>
+              </button>
+            </div>
+          )
+        })()}
+
+        {/* Display Info */}
         <div className="mt-8 mb-6 text-center">
           <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-100 max-w-2xl mx-auto">
-            <p className="text-lg font-bold text-gray-800">
-              Showing <span className="text-red-600 text-2xl">{data.total_listings}</span> listings
+            <p className="text-xl font-bold text-gray-800 mb-2">
+              Showing <span className="text-red-600 text-2xl">
+                {(() => {
+                  const startIndex = (currentPage - 1) * listingsPerPage
+                  const endIndex = Math.min(startIndex + listingsPerPage, filteredListings.length)
+                  return startIndex + 1 === endIndex ? endIndex : `${startIndex + 1}-${endIndex}`
+                })()}
+              </span> of{' '}
+              <span className="text-red-600 text-2xl">{filteredListings.length}</span> {searchQuery ? 'filtered' : ''} listings
+              {searchQuery && data?.listings && (
+                <span className="text-gray-500 text-base font-normal ml-2">
+                  (out of {data.listings.length} total)
+                </span>
+              )}
+              {filteredListings.length > listingsPerPage && (
+                <span className="text-gray-500 text-base font-normal ml-2">
+                  (Page {currentPage} of {Math.ceil(filteredListings.length / listingsPerPage)})
+                </span>
+              )}
             </p>
-            <p className="text-sm text-gray-600 mt-2">
-              Data scraped on {data.scrape_date || '2025-11-20'} from Redfin
+            <p className="text-sm text-gray-600">
+              Data source: {data.source || 'Redfin'} Scraped on {data.scrape_date || 'N/A'}
             </p>
           </div>
         </div>

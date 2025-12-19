@@ -17,7 +17,7 @@ export async function GET() {
         console.log('📥 Fetching Trulia listings from Supabase...')
         const { data: listings, error } = await dbClient
           .from('trulia_listings')
-          .select('id, address, price, beds, baths, square_feet, listing_link, property_type, lot_size, description, owner_name, mailing_address, emails, phones')
+          .select('id, address, price, beds, baths, square_feet, listing_link, property_type, lot_size, description, owner_name, mailing_address, emails, phones, scrape_date')
           .order('id', { ascending: true })
 
         if (!error && listings && listings.length > 0) {
@@ -48,14 +48,23 @@ export async function GET() {
               is_active_for_sale: true,
               is_off_market: false,
               is_recently_sold: false,
-              is_foreclosure: false
+              is_foreclosure: false,
+              scrape_date: listing.scrape_date || '2025-11-20'
             }
           })
+
+          // Get the latest scrape date from the listings
+          const latestScrapeDate = transformedListings.length > 0
+            ? transformedListings.reduce((latest: string, current: any) => {
+              const currentDate = current.scrape_date || '';
+              return currentDate > latest ? currentDate : latest
+            }, transformedListings[0].scrape_date || '')
+            : new Date().toISOString().split('T')[0]
 
           return NextResponse.json(
             {
               total_listings: transformedListings.length,
-              scrape_date: '2025-11-20',
+              scrape_date: latestScrapeDate,
               listings: transformedListings
             },
             {
@@ -150,14 +159,23 @@ export async function GET() {
         is_off_market: listing.isOffMarket || listing.IsOffMarket || false,
         is_recently_sold: listing.isRecentlySold || listing.IsRecentlySold || false,
         is_foreclosure: listing.isForeclosure || listing.IsForeclosure || false,
-        title: listing.title || listing.Title || ''
+        title: listing.title || listing.Title || '',
+        scrape_date: listing.scrape_date || '2025-11-20'
       }
     })
+
+    // Get the latest scrape date from the listings
+    const latestScrapeDate = transformedListings.length > 0
+      ? transformedListings.reduce((latest: string, current: any) => {
+        const currentDate = current.scrape_date || '';
+        return currentDate > latest ? currentDate : latest
+      }, transformedListings[0].scrape_date || '')
+      : new Date().toISOString().split('T')[0]
 
     return NextResponse.json(
       {
         total_listings: transformedListings.length,
-        scrape_date: '2025-11-20',
+        scrape_date: latestScrapeDate,
         listings: transformedListings
       },
       {

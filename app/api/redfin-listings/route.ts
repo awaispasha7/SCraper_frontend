@@ -50,10 +50,18 @@ export async function GET() {
             }
           })
 
+          // Get the latest scrape date from the listings
+          const latestScrapeDate = transformedListings.length > 0
+            ? transformedListings.reduce((latest: string, current: any) => {
+              const currentData = current.scrape_date || '';
+              return currentData > latest ? currentData : latest
+            }, transformedListings[0].scrape_date || '')
+            : new Date().toISOString().split('T')[0]
+
           return NextResponse.json(
             {
               total_listings: transformedListings.length,
-              scrape_date: '2025-11-20',
+              scrape_date: latestScrapeDate,
               source: 'Redfin',
               listings: transformedListings
             },
@@ -191,10 +199,18 @@ export async function GET() {
       }
     })
 
+    // Get the latest scrape date from the listings
+    const latestScrapeDate = transformedListings.length > 0
+      ? transformedListings.reduce((latest: string, current: any) => {
+        const currentData = current.scrape_date || '';
+        return currentData > latest ? currentData : latest
+      }, transformedListings[0].scrape_date || '')
+      : new Date().toISOString().split('T')[0]
+
     return NextResponse.json(
       {
         total_listings: transformedListings.length,
-        scrape_date: '2025-11-20',
+        scrape_date: latestScrapeDate,
         source: 'Redfin',
         listings: transformedListings
       },
