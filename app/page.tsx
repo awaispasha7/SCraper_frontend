@@ -456,7 +456,7 @@ export default function HomePage() {
                 alt="Scraper Logo"
                 width={80}
                 height={80}
-                className="rounded-xl shadow-lg w-16 h-16 sm:w-20 sm:h-20"
+                className="rounded-full shadow-lg w-16 h-16 sm:w-20 sm:h-20"
               />
               <div>
                 <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-gray-900 tracking-tight">

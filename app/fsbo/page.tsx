@@ -597,74 +597,9 @@ export default function Dashboard() {
     return pollInterval
   }
 
-  // Handle manual refresh (runs scraper + syncs + fetches)
+  // Handle manual refresh (just fetches already-scraped data)
   const handleRefresh = async () => {
-    try {
-      setIsSyncing(true)
-      setSyncProgress('🔍 Starting to find new leads...')
-      setError(null)
-
-      // Start polling for listings immediately - this will update the UI in real-time
-      const pollInterval = pollForListings(3000, 120) // Poll every 3 seconds (reduced frequency to prevent lag)
-
-      // Step 1: Run scraper and sync to Supabase
-      console.log('🔄 Step 1: Scraping data from website...')
-      console.log('🔄 Step 2: Storing listings directly in database...')
-      setSyncProgress('🔍 Searching for new leads...')
-
-      const syncResponse = await fetch('/api/auto-sync', { method: 'POST' })
-
-      if (!syncResponse.ok) {
-        clearInterval(pollInterval)
-        const errorData = await syncResponse.json()
-        throw new Error(errorData.error || 'Failed to sync listings')
-      }
-
-      const syncResult = await syncResponse.json()
-      console.log('✅ Sync complete:', syncResult)
-      console.log(`✅ Added: ${syncResult.stats?.added || 0} new listings`)
-      console.log(`✅ Updated: ${syncResult.stats?.updated || 0} listings`)
-      console.log(`✅ Total in database: ${syncResult.stats?.total || 0} listings`)
-
-      // Update last refresh time using the timestamp from sync result
-      if (syncResult.timestamp) {
-        setLastRefreshTime(new Date(syncResult.timestamp))
-      } else {
-        setLastRefreshTime(new Date())
-      }
-
-      // Continue polling for a bit more to catch any final listings
-      setSyncProgress(`✅ Found ${syncResult.stats?.total || 0} leads! Updating list...`)
-      await new Promise(resolve => setTimeout(resolve, 3000))
-
-      // Stop polling and fetch final data
-      clearInterval(pollInterval)
-
-      // Step 2: Fetch fresh data from Supabase
-      await fetchListings()
-
-      // Step 4: Ensure lastRefreshTime reflects the sync timestamp
-      if (syncResult.timestamp) {
-        const syncTimestamp = new Date(syncResult.timestamp)
-        setLastRefreshTime(prev => {
-          if (!prev || syncTimestamp >= prev) {
-            return syncTimestamp
-          }
-          return prev
-        })
-      }
-
-      setSyncProgress('')
-      setIsSyncing(false)
-
-    } catch (err: any) {
-      setError(err.message || 'Failed to refresh listings')
-      console.error('Error refreshing listings:', err)
-      setSyncProgress('')
-      setIsSyncing(false)
-      // Still try to fetch existing data even if sync failed
-      await fetchListings()
-    }
+    await fetchListings()
   }
 
   const formatPrice = (price: string | number | null | undefined) => {
@@ -1144,11 +1079,11 @@ export default function Dashboard() {
               </div>
               <button
                 onClick={handleRefresh}
-                disabled={loading || isSyncing}
+                disabled={loading}
                 className="bg-blue-50 text-blue-700 border border-blue-300 px-6 py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 font-medium shadow-sm hover:shadow-md"
               >
-                <span className={`text-lg ${isSyncing ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
-                {isSyncing ? 'Syncing...' : loading ? 'Loading...' : 'Sync Data'}
+                <span className={`text-lg ${loading ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
+                {loading ? 'Refreshing...' : 'Refresh Data'}
               </button>
             </div>
           </div>
@@ -1165,18 +1100,18 @@ export default function Dashboard() {
             <div className="space-y-4">
               <button
                 onClick={handleRefresh}
-                disabled={loading || isSyncing}
+                disabled={loading}
                 className="bg-blue-50 text-blue-700 border border-blue-300 px-8 py-4 rounded-lg hover:bg-blue-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 mx-auto"
               >
-                {isSyncing || loading ? (
+                {loading ? (
                   <>
                     <span className="animate-spin">🔄</span>
-                    <span>Syncing Data...</span>
+                    <span>Refreshing Data...</span>
                   </>
                 ) : (
                   <>
-                    <span className="text-xl">🚀</span>
-                    <span>Sync Data from Website</span>
+                    <span className="text-xl">🔄</span>
+                    <span>Refresh Data</span>
                   </>
                 )}
               </button>
@@ -1226,12 +1161,12 @@ export default function Dashboard() {
               />
               <button
                 onClick={handleRefresh}
-                disabled={loading || isSyncing}
+                disabled={loading}
                 className="bg-blue-50 text-blue-700 border border-blue-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
               >
-                <span className={`text-base sm:text-lg ${isSyncing ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
-                <span className="hidden sm:inline">{isSyncing ? 'Syncing...' : loading ? 'Loading...' : 'Refresh'}</span>
-                <span className="sm:hidden">{isSyncing ? 'Sync...' : loading ? 'Load...' : 'Refresh'}</span>
+                <span className={`text-base sm:text-lg ${loading ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
+                <span className="hidden sm:inline">{loading ? 'Refreshing...' : 'Refresh'}</span>
+                <span className="sm:hidden">{loading ? 'Refresh...' : 'Refresh'}</span>
               </button>
               <button
                 onClick={handleLogout}
@@ -1625,8 +1560,8 @@ export default function Dashboard() {
                   key={pageNum}
                   onClick={() => setCurrentPage(pageNum)}
                   className={`px-3 sm:px-4 py-2 rounded-lg transition-all duration-200 font-medium shadow-sm active:scale-95 min-w-[40px] sm:min-w-[44px] min-h-[40px] sm:min-h-[44px] text-xs sm:text-sm ${currentPage === pageNum
-                      ? 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700'
-                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100'
+                    ? 'bg-blue-600 text-white border border-blue-600 hover:bg-blue-700'
+                    : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50 active:bg-gray-100'
                     }`}
                 >
                   {pageNum}

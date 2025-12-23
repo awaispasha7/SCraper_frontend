@@ -235,82 +235,9 @@ function ApartmentsPageContent() {
     return pollInterval
   }
 
-  // Handle manual refresh (runs scraper + syncs + fetches)
+  // Handle manual refresh (just fetches already-scraped data)
   const handleRefresh = async () => {
-    try {
-      setIsSyncing(true)
-      setSyncProgress('🔍 Starting to find new leads...')
-      setError(null)
-
-      // Start polling for listings immediately - this will update the UI in real-time
-      const pollInterval = pollForListings(3000, 120) // Poll every 3 seconds
-
-      // Step 1: Run scraper and sync to Supabase
-      console.log('🔄 Step 1: Scraping apartments data from website...')
-      console.log('🔄 Step 2: Storing listings directly in database...')
-      setSyncProgress('🔍 Searching for new leads...')
-
-      const syncResponse = await fetch('/api/apartments-sync', { method: 'POST' })
-
-      const syncResult = await syncResponse.json()
-
-      if (!syncResponse.ok) {
-        clearInterval(pollInterval)
-        // Show detailed error message if available
-        const errorMessage = syncResult.details || syncResult.error || 'Failed to sync listings'
-        throw new Error(errorMessage)
-      }
-
-      // Check for warnings (e.g., backend URL not configured)
-      if (syncResult.warning) {
-        console.warn('⚠️ Sync warning:', syncResult.warning)
-        setError(`⚠️ ${syncResult.warning}`)
-      }
-
-      console.log('✅ Sync complete:', syncResult)
-      console.log(`✅ Added: ${syncResult.stats?.added || 0} new listings`)
-      console.log(`✅ Updated: ${syncResult.stats?.updated || 0} listings`)
-      console.log(`✅ Total in database: ${syncResult.stats?.total || 0} listings`)
-
-      // Update last refresh time using the timestamp from sync result
-      if (syncResult.timestamp) {
-        setLastRefreshTime(new Date(syncResult.timestamp))
-      } else {
-        setLastRefreshTime(new Date())
-      }
-
-      // Continue polling for a bit more to catch any final listings
-      setSyncProgress(`✅ Found ${syncResult.stats?.total || 0} leads! Updating list...`)
-      await new Promise(resolve => setTimeout(resolve, 3000))
-
-      // Stop polling and fetch final data
-      clearInterval(pollInterval)
-
-      // Step 2: Fetch fresh data from Supabase
-      await fetchListings()
-
-      // Step 3: Ensure lastRefreshTime reflects the sync timestamp
-      if (syncResult.timestamp) {
-        const syncTimestamp = new Date(syncResult.timestamp)
-        setLastRefreshTime(prev => {
-          if (!prev || syncTimestamp >= prev) {
-            return syncTimestamp
-          }
-          return prev
-        })
-      }
-
-      setSyncProgress('')
-      setIsSyncing(false)
-
-    } catch (err: any) {
-      setError(err.message || 'Failed to refresh listings')
-      console.error('Error refreshing listings:', err)
-      setSyncProgress('')
-      setIsSyncing(false)
-      // Still try to fetch existing data even if sync failed
-      await fetchListings()
-    }
+    await fetchListings(true)
   }
 
   const fetchListings = async (forceRefresh: boolean = false) => {
@@ -552,18 +479,18 @@ function ApartmentsPageContent() {
           </p>
           <button
             onClick={handleRefresh}
-            disabled={loading || isSyncing}
+            disabled={loading}
             className="bg-cyan-600 text-white px-8 py-4 rounded-lg hover:bg-cyan-700 transition-all duration-200 font-medium shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {isSyncing || loading ? (
+            {loading ? (
               <>
                 <span className="animate-spin inline-block mr-2">🔄</span>
-                <span>Syncing Data...</span>
+                <span>Refreshing Data...</span>
               </>
             ) : (
               <>
                 <span className="mr-2">🔄</span>
-                <span>Sync Data from Website</span>
+                <span>Refresh Data</span>
               </>
             )}
           </button>
@@ -610,14 +537,6 @@ function ApartmentsPageContent() {
               />
               <div className="flex items-center gap-2 sm:gap-3 flex-1 md:flex-initial">
                 <button
-                  onClick={handleRefresh}
-                  disabled={loading || isSyncing}
-                  className="bg-cyan-600 text-white border border-cyan-600 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 rounded-lg hover:bg-cyan-700 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className={`text-base sm:text-lg ${isSyncing ? 'animate-spin' : ''}`}>🔄</span>
-                  <span>{isSyncing ? 'Syncing...' : loading ? 'Loading...' : 'Sync'}</span>
-                </button>
-                <button
                   onClick={() => fetchListings(true)}
                   disabled={loading || isSyncing}
                   className="bg-cyan-50 text-cyan-700 border border-cyan-300 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 rounded-lg hover:bg-cyan-100 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
@@ -637,17 +556,6 @@ function ApartmentsPageContent() {
         </div>
       </header>
 
-      {/* Sync Progress Banner */}
-      {isSyncing && syncProgress && (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4 -mt-2">
-          <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-lg p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <span className="text-2xl animate-spin">🔄</span>
-              <p className="text-cyan-900 font-semibold text-lg">{syncProgress}</p>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 -mt-2">
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">

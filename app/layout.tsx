@@ -3,8 +3,11 @@ import './globals.css'
 import ConditionalLayout from './components/ConditionalLayout'
 
 export const metadata: Metadata = {
-  title: 'ForSaleByOwner - Dashboard',
+  title: 'WebScraper - Dashboard',
   description: 'Property Listings Dashboard',
+  icons: {
+    icon: '/favicon.png',
+  },
 }
 
 export default function RootLayout({
