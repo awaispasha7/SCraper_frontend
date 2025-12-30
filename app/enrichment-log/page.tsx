@@ -63,6 +63,27 @@ export default function EnrichmentLogPage() {
         fetchHistory()
     }, [isAuthenticated])
 
+    const triggerEnrichment = async () => {
+        if (!confirm("Are you sure you want to trigger enrichment for the next 50 listings? This will incur costs.")) return
+
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+            const res = await fetch(`${backendUrl}/api/trigger-enrichment?limit=50`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            })
+            const data = await res.json()
+            if (res.ok) {
+                alert("✅ Started enrichment for 50 listings. Check logs in a few minutes.")
+            } else {
+                alert(`❌ Error: ${data.error}`)
+            }
+        } catch (e) {
+            alert("❌ Failed to connect to backend")
+            console.error(e)
+        }
+    }
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -84,8 +105,14 @@ export default function EnrichmentLogPage() {
                             Enrichment Activity Log
                         </h1>
                     </div>
-                    <div className="text-sm text-gray-500 font-medium">
-                        Showing last 50 attempts
+                    <div className="flex items-center gap-4 text-sm text-gray-500 font-medium">
+                        <button
+                            onClick={triggerEnrichment}
+                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition-colors shadow-sm flex items-center gap-2"
+                        >
+                            <span>▶️</span> Run Enrichment (50)
+                        </button>
+                        <span>Showing last 50 attempts</span>
                     </div>
                 </div>
             </nav>
