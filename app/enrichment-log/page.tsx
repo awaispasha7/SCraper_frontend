@@ -31,6 +31,7 @@ export default function EnrichmentLogPage() {
     const [error, setError] = useState<string | null>(null)
     const [stats, setStats] = useState<{ pending: number, enriched: number, no_data: number, smart_skipped: number, api_calls: number, is_running: boolean } | null>(null)
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
+    const [isTriggering, setIsTriggering] = useState(false)
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -132,6 +133,7 @@ export default function EnrichmentLogPage() {
         if (!confirm("Are you sure you want to trigger enrichment for the next 50 listings? This will incur costs.")) return
 
         try {
+            setIsTriggering(true)
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
             const res = await fetch(`${backendUrl}/api/trigger-enrichment?limit=50`, {
                 method: 'POST',
@@ -139,13 +141,16 @@ export default function EnrichmentLogPage() {
             })
             const data = await res.json()
             if (res.ok) {
-                alert("✅ Started enrichment for 50 listings. Check logs in a few minutes.")
+                alert("✅ Started enrichment for 50 listings. Data will appear here automatically every 10 seconds.")
             } else {
                 alert(`❌ Error: ${data.error}`)
             }
         } catch (e) {
             alert("❌ Failed to connect to backend")
             console.error(e)
+        } finally {
+            setIsTriggering(false)
+            fetchStats()
         }
     }
 
@@ -173,9 +178,19 @@ export default function EnrichmentLogPage() {
                     <div className="flex items-center gap-4 text-sm text-gray-500 font-medium">
                         <button
                             onClick={triggerEnrichment}
-                            className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold transition-colors shadow-sm flex items-center gap-2"
+                            disabled={isTriggering || stats?.is_running}
+                            className={`${(isTriggering || stats?.is_running) ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'} text-white px-4 py-2 rounded-lg font-bold transition-all shadow-sm flex items-center gap-2`}
                         >
-                            <span>▶️</span> Run Enrichment (50)
+                            {(isTriggering || stats?.is_running) ? (
+                                <>
+                                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+                                    Processing...
+                                </>
+                            ) : (
+                                <>
+                                    <span>▶️</span> Run Enrichment (50)
+                                </>
+                            )}
                         </button>
                         <button
                             onClick={refreshData}
@@ -196,11 +211,17 @@ export default function EnrichmentLogPage() {
             </nav>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                {error && (
-                    <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl mb-6">
-                        Error: {error}
-                    </div>
-                )}
+                <div className="flex justify-between items-center mb-6">
+                    <p className="text-gray-500 text-sm">
+                        💡 Tip: Click on an address or source to view the listing in its dashboard.
+                    </p>
+                    {stats?.is_running && (
+                        <p className="text-blue-600 text-sm font-medium animate-pulse flex items-center gap-2">
+                            <span className="h-2 w-2 bg-blue-600 rounded-full"></span>
+                            Refreshes automatically every 10 seconds
+                        </p>
+                    )}
+                </div>
 
                 <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-200">
                     <div className="overflow-x-auto">
@@ -270,7 +291,7 @@ export default function EnrichmentLogPage() {
                     </div>
                 </div>
             </main>
-        </div>
+        </div >
     )
 }
 

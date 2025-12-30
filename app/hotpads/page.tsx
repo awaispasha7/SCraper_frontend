@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useMemo, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
 import ScraperRunButton from '@/app/components/ScraperRunButton'
@@ -37,6 +37,7 @@ interface HotpadsListingsData {
 
 function HotpadsPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [data, setData] = useState<HotpadsListingsData | null>(() => {
     if (typeof window !== 'undefined') {
       const cached = sessionStorage.getItem('hotpadsListingsData')
@@ -55,6 +56,14 @@ function HotpadsPageContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1) // Current page number
   const listingsPerPage = 20 // Listings per page
+
+  // Handle deep-linking from enrichment log
+  useEffect(() => {
+    const search = searchParams.get('search')
+    if (search) {
+      setSearchQuery(search)
+    }
+  }, [searchParams])
 
   const handleLogout = async () => {
     try {
@@ -774,7 +783,13 @@ function HotpadsPageContent() {
 export default function HotpadsPage() {
   return (
     <AuthGuard>
-      <HotpadsPageContent />
+      <Suspense fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      }>
+        <HotpadsPageContent />
+      </Suspense>
     </AuthGuard>
   )
 }

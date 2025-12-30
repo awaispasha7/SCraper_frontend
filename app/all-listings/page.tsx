@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AuthGuard from '@/app/components/AuthGuard'
 import { createClient } from '@/lib/supabase-client'
 
@@ -33,6 +33,7 @@ interface UnifiedListing {
 
 function AllListingsPageContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [allListings, setAllListings] = useState<UnifiedListing[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -68,6 +69,14 @@ function AllListingsPageContent() {
   useEffect(() => {
     fetchAllListings()
   }, [])
+
+  // Handle deep-linking from enrichment log
+  useEffect(() => {
+    const search = searchParams.get('search')
+    if (search) {
+      setSearchQuery(search)
+    }
+  }, [searchParams])
 
   const fetchAllListings = async () => {
     try {
@@ -348,7 +357,7 @@ function AllListingsPageContent() {
   // Helper to normalize array data (handles arrays, JSON strings, or single values)
   const normalizeArrayData = (value: any): string[] => {
     if (!value || value === 'null' || value === 'None' || value === '') return []
-    
+
     if (Array.isArray(value)) {
       // Flatten nested arrays and handle numbers properly (prevent scientific notation)
       const flattened: string[] = []
@@ -384,7 +393,7 @@ function AllListingsPageContent() {
       flatten(value)
       return flattened
     }
-    
+
     if (typeof value === 'string') {
       // Try to parse as JSON first
       try {
@@ -403,7 +412,7 @@ function AllListingsPageContent() {
         return [value.trim()].filter(v => v)
       }
     }
-    
+
     // Handle numbers or other types - convert to string array
     if (typeof value === 'number') {
       if (Number.isInteger(value) && value > 0) {
@@ -415,7 +424,7 @@ function AllListingsPageContent() {
       }
       return [String(value)]
     }
-    
+
     return []
   }
 
@@ -423,7 +432,7 @@ function AllListingsPageContent() {
     if (value === null || value === undefined || value === '' || value === 'null' || value === 'No email addresses found' || value === 'no email found' || value === 'no data') {
       return ''
     }
-    
+
     // For array fields (emails/phones), normalize first
     if (isArrayField) {
       const normalized = normalizeArrayData(value)
@@ -438,9 +447,9 @@ function AllListingsPageContent() {
       // Always quote array values to ensure they stay in one column
       // This ensures "email1,email2,email3" stays in ONE column
       return `"${joined.replace(/"/g, '""')}"`
-      
+
     }
-    
+
     // Handle arrays for non-array fields (shouldn't happen, but be safe)
     if (Array.isArray(value)) {
       const filtered = value.filter(v => v && String(v).trim() !== '')
@@ -449,7 +458,7 @@ function AllListingsPageContent() {
       const joined = filtered.join(',')
       return `"${joined.replace(/"/g, '""')}"`
     }
-    
+
     const str = String(value).trim()
     if (!str || str === '') return ''
     if (str.includes(',') || str.includes('"') || str.includes('\n') || str.includes('\r')) {
@@ -462,7 +471,7 @@ function AllListingsPageContent() {
     // Prepare CSV data for single listing - different fields based on source
     let headers: string[]
     let rowData: string[]
-    
+
     if (listing.source === 'apartments') {
       // For apartments, include all apartment fields
       headers = ['address', 'price', 'beds', 'baths', 'square_feet', 'listing_link', 'property_type', 'owner_name', 'emails', 'phones', 'city', 'state', 'zip', 'neighborhood', 'description']
@@ -559,11 +568,11 @@ function AllListingsPageContent() {
 
   const handleDownloadBySource = (source: string) => {
     const sourceListings = filteredListings.filter(listing => listing.source === source)
-    
+
     // Prepare CSV data for source listings - different fields based on source
     let headers: string[]
     let rows: string[][]
-    
+
     if (source === 'apartments') {
       // For apartments, include all apartment fields
       headers = ['address', 'price', 'beds', 'baths', 'square_feet', 'listing_link', 'property_type', 'owner_name', 'emails', 'phones', 'city', 'state', 'zip', 'neighborhood', 'description']
@@ -625,7 +634,7 @@ function AllListingsPageContent() {
   const filteredListings = allListings.filter(listing => {
     if (!searchQuery.trim()) return true
     const query = searchQuery.toLowerCase()
-    
+
     // Helper function to safely convert value to searchable string
     const toSearchableString = (value: any): string => {
       if (value === null || value === undefined || value === '') return ''
@@ -637,7 +646,7 @@ function AllListingsPageContent() {
       // For comma-separated strings (like emails/phones), replace commas with spaces for better searching
       return str.replace(/,/g, ' ').toLowerCase()
     }
-    
+
     // Helper function to normalize price/number values for comparison
     // Removes $, commas, spaces, and extracts only digits
     const normalizePrice = (value: any): string => {
@@ -647,14 +656,14 @@ function AllListingsPageContent() {
       // Remove all non-digit characters
       return str.replace(/\D/g, '')
     }
-    
+
     // Normalize the search query for price/number matching
     const normalizedQuery = normalizePrice(query)
-    
+
     // Detect if user is searching specifically for beds or baths
     const isBedsSearch = query.includes('bed') && !query.includes('bath')
     const isBathsSearch = query.includes('bath') && !query.includes('bed')
-    
+
     // Extract number from query (e.g., "6 beds" -> "6", "6" -> "6")
     const extractNumber = (searchQuery: string): string => {
       const match = searchQuery.match(/\d+/)
@@ -662,7 +671,7 @@ function AllListingsPageContent() {
     }
     const searchNumber = extractNumber(query)
     const normalizedSearchNumber = normalizePrice(searchNumber)
-    
+
     // Helper function to match exact number (for beds/baths)
     const matchesExactNumber = (value: any, searchNumber: string): boolean => {
       if (value === null || value === undefined || value === '' || !searchNumber) return false
@@ -671,20 +680,20 @@ function AllListingsPageContent() {
       // Exact match only - "6" should match "6" but not "16" or "60"
       return normalizedValue === searchNumber || valueStr === searchNumber
     }
-    
+
     // Helper function to check if a price/number field matches the query
     const matchesPrice = (value: any): boolean => {
       if (value === null || value === undefined || value === '') return false
-      
+
       // Convert to string for comparison
       const valueStr = String(value).toLowerCase().trim()
       const normalizedValue = normalizePrice(value)
-      
+
       // If normalized query is empty, check original string match
       if (!normalizedQuery || normalizedQuery === '') {
         return valueStr.includes(query)
       }
-      
+
       // For price matching, be more precise:
       // 1. Exact match on normalized values (e.g., "450000" === "450000")
       // 2. Original string contains the full query (e.g., "$450,000" contains "$450,000")
@@ -693,30 +702,30 @@ function AllListingsPageContent() {
       if (normalizedValue === normalizedQuery) {
         return true // Exact match
       }
-      
+
       // Check if original formatted string contains the query
       if (valueStr.includes(query)) {
         return true
       }
-      
+
       // For partial number matches, only match if the normalized value starts with the normalized query
       // This prevents "450" from matching "1450000" (which contains "450" but doesn't start with it)
       if (normalizedQuery.length < normalizedValue.length && normalizedValue.startsWith(normalizedQuery)) {
         return true
       }
-      
+
       return false
     }
-    
+
     // If searching specifically for beds or baths, ONLY search those fields
     if (isBedsSearch) {
       return listing.beds && matchesExactNumber(listing.beds, normalizedSearchNumber)
     }
-    
+
     if (isBathsSearch) {
       return listing.baths && matchesExactNumber(listing.baths, normalizedSearchNumber)
     }
-    
+
     // Search in all fields (when not searching specifically for beds/baths)
     return (
       // Address fields
@@ -724,10 +733,10 @@ function AllListingsPageContent() {
       (listing.city && String(listing.city).toLowerCase().includes(query)) ||
       (listing.state && String(listing.state).toLowerCase().includes(query)) ||
       (listing.zip && String(listing.zip).toLowerCase().includes(query)) ||
-      
+
       // Owner name
       (listing.owner_name && String(listing.owner_name).toLowerCase().includes(query)) ||
-      
+
       // Property details - use normalized price matching for numeric fields
       (listing.price && matchesPrice(listing.price)) ||
       // If searching just a number (no "bed" or "bath" keyword), check both beds and baths with exact match
@@ -742,7 +751,7 @@ function AllListingsPageContent() {
       (listing.lot_size && listing.lot_size.toLowerCase().includes(query)) ||
       (listing.lot_acres && matchesPrice(listing.lot_acres)) ||
       (listing.description && listing.description.toLowerCase().includes(query)) ||
-      
+
       // Dates and source
       (listing.time_of_post && listing.time_of_post.toLowerCase().includes(query)) ||
       (listing.scrape_date && listing.scrape_date.toLowerCase().includes(query)) ||
@@ -813,17 +822,17 @@ function AllListingsPageContent() {
                   onClick={handleDownloadAll}
                   className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-300 px-3 sm:px-4 py-2 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all duration-200 flex items-center gap-1.5 font-semibold shadow-sm hover:shadow-md text-xs sm:text-sm flex-1 sm:flex-initial"
                 >
-                  <svg 
-                    className="w-3.5 h-3.5 sm:w-4 sm:h-4" 
-                    fill="none" 
-                    stroke="currentColor" 
+                  <svg
+                    className="w-3.5 h-3.5 sm:w-4 sm:h-4"
+                    fill="none"
+                    stroke="currentColor"
                     viewBox="0 0 24 24"
                   >
-                    <path 
-                      strokeLinecap="round" 
-                      strokeLinejoin="round" 
-                      strokeWidth={2.5} 
-                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" 
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2.5}
+                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                     />
                   </svg>
                   <span className="hidden sm:inline">Download All</span>
@@ -925,17 +934,17 @@ function AllListingsPageContent() {
                     onClick={() => handleDownloadBySource(source)}
                     className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-300 px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg hover:from-blue-100 hover:to-blue-200 transition-all duration-200 flex items-center gap-1.5 font-semibold shadow-sm hover:shadow-md text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
                   >
-                    <svg 
-                      className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" 
-                      fill="none" 
-                      stroke="currentColor" 
+                    <svg
+                      className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0"
+                      fill="none"
+                      stroke="currentColor"
                       viewBox="0 0 24 24"
                     >
-                      <path 
-                        strokeLinecap="round" 
-                        strokeLinejoin="round" 
-                        strokeWidth={2.5} 
-                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" 
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2.5}
+                        d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                       />
                     </svg>
                     <span className="hidden sm:inline">Download All Details</span>
@@ -962,8 +971,8 @@ function AllListingsPageContent() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-100">
                       {paginatedListings.map((listing, index) => (
-                        <tr 
-                          key={listing.id} 
+                        <tr
+                          key={listing.id}
                           className={`hover:bg-blue-50/50 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}`}
                         >
                           <td className="px-4 py-3">
@@ -1035,17 +1044,17 @@ function AllListingsPageContent() {
                                 className="text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-1.5 rounded hover:bg-blue-50 transition-colors flex items-center gap-1 flex-shrink-0"
                                 title="Download Details"
                               >
-                                <svg 
-                                  className="w-4 h-4 flex-shrink-0" 
-                                  fill="none" 
-                                  stroke="currentColor" 
+                                <svg
+                                  className="w-4 h-4 flex-shrink-0"
+                                  fill="none"
+                                  stroke="currentColor"
                                   viewBox="0 0 24 24"
                                 >
-                                  <path 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round" 
-                                    strokeWidth={2} 
-                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" 
+                                  <path
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                    strokeWidth={2}
+                                    d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                                   />
                                 </svg>
                                 <span>Download</span>
@@ -1060,100 +1069,100 @@ function AllListingsPageContent() {
 
                 {/* Mobile Card Layout */}
                 <div className="md:hidden space-y-3 p-4">
-                {paginatedListings.map((listing) => (
-                  <div key={listing.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                    <div className="space-y-2">
-                      <div>
-                        <h3 className="text-sm font-bold text-gray-900 mb-1">
-                          {listing.address || 'Address Not Available'}
-                        </h3>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
+                  {paginatedListings.map((listing) => (
+                    <div key={listing.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                      <div className="space-y-2">
                         <div>
-                          <span className="text-gray-500">Price:</span>
-                          <span className="ml-1 font-bold text-gray-900">{listing.price ? formatPrice(listing.price) : 'N/A'}</span>
+                          <h3 className="text-sm font-bold text-gray-900 mb-1">
+                            {listing.address || 'Address Not Available'}
+                          </h3>
                         </div>
-                        <div>
-                          <span className="text-gray-500">Beds:</span>
-                          <span className="ml-1 font-medium text-gray-900">{listing.beds ? formatNumber(listing.beds) : 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Baths:</span>
-                          <span className="ml-1 font-medium text-gray-900">{listing.baths ? formatNumber(listing.baths) : 'N/A'}</span>
-                        </div>
-                        <div>
-                          <span className="text-gray-500">Sqft:</span>
-                          <span className="ml-1 font-medium text-gray-900">{listing.square_feet ? formatSquareFeet(listing.square_feet) : 'N/A'}</span>
-                        </div>
-                        {listing.owner_name && (
-                          <div className="col-span-2">
-                            <span className="text-gray-500">Owner:</span>
-                            <span className="ml-1 font-medium text-gray-900 truncate block">{listing.owner_name}</span>
+                        <div className="grid grid-cols-2 gap-2 text-xs">
+                          <div>
+                            <span className="text-gray-500">Price:</span>
+                            <span className="ml-1 font-bold text-gray-900">{listing.price ? formatPrice(listing.price) : 'N/A'}</span>
                           </div>
-                        )}
-                      </div>
-                      <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
-                        {listing.listing_link && (
-                          <a
-                            href={listing.listing_link}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="flex-1 text-center text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-2 rounded-lg border border-blue-300 hover:bg-blue-50 transition-colors"
-                          >
-                            View
-                          </a>
-                        )}
-                        {listing.address && listing.address !== 'Address Not Available' && (
+                          <div>
+                            <span className="text-gray-500">Beds:</span>
+                            <span className="ml-1 font-medium text-gray-900">{listing.beds ? formatNumber(listing.beds) : 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Baths:</span>
+                            <span className="ml-1 font-medium text-gray-900">{listing.baths ? formatNumber(listing.baths) : 'N/A'}</span>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Sqft:</span>
+                            <span className="ml-1 font-medium text-gray-900">{listing.square_feet ? formatSquareFeet(listing.square_feet) : 'N/A'}</span>
+                          </div>
+                          {listing.owner_name && (
+                            <div className="col-span-2">
+                              <span className="text-gray-500">Owner:</span>
+                              <span className="ml-1 font-medium text-gray-900 truncate block">{listing.owner_name}</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100">
+                          {listing.listing_link && (
+                            <a
+                              href={listing.listing_link}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 text-center text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-2 rounded-lg border border-blue-300 hover:bg-blue-50 transition-colors"
+                            >
+                              View
+                            </a>
+                          )}
+                          {listing.address && listing.address !== 'Address Not Available' && (
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault()
+                                if (typeof window !== 'undefined') {
+                                  const scrollY = window.scrollY
+                                  sessionStorage.setItem('listingScrollPosition', scrollY.toString())
+                                  sessionStorage.setItem('listingAddress', listing.address || '')
+                                  sessionStorage.setItem('preventScrollRestore', 'true')
+                                  sessionStorage.setItem('sourcePage', 'all-listings')
+                                  const params = new URLSearchParams({
+                                    address: listing.address || '',
+                                    source: listing.source
+                                  })
+                                  if (listing.listing_link) {
+                                    params.append('listing_link', listing.listing_link)
+                                  }
+                                  window.location.href = `/owner-info?${params.toString()}`
+                                }
+                              }}
+                              className="flex-1 text-center text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-2 rounded-lg border border-blue-300 hover:bg-blue-50 transition-colors"
+                            >
+                              Owner
+                            </button>
+                          )}
                           <button
                             onClick={(e) => {
                               e.preventDefault()
-                              if (typeof window !== 'undefined') {
-                                const scrollY = window.scrollY
-                                sessionStorage.setItem('listingScrollPosition', scrollY.toString())
-                                sessionStorage.setItem('listingAddress', listing.address || '')
-                                sessionStorage.setItem('preventScrollRestore', 'true')
-                                sessionStorage.setItem('sourcePage', 'all-listings')
-                                const params = new URLSearchParams({
-                                  address: listing.address || '',
-                                  source: listing.source
-                                })
-                                if (listing.listing_link) {
-                                  params.append('listing_link', listing.listing_link)
-                                }
-                                window.location.href = `/owner-info?${params.toString()}`
-                              }
+                              handleDownload(listing)
                             }}
-                            className="flex-1 text-center text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-2 rounded-lg border border-blue-300 hover:bg-blue-50 transition-colors"
+                            className="flex-1 text-center text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-2 rounded-lg border border-blue-300 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
                           >
-                            Owner
+                            <svg
+                              className="w-4 h-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
+                              />
+                            </svg>
+                            <span>Download</span>
                           </button>
-                        )}
-                        <button
-                          onClick={(e) => {
-                            e.preventDefault()
-                            handleDownload(listing)
-                          }}
-                          className="flex-1 text-center text-blue-600 hover:text-blue-800 text-xs font-medium px-3 py-2 rounded-lg border border-blue-300 hover:bg-blue-50 transition-colors flex items-center justify-center gap-1"
-                        >
-                          <svg 
-                            className="w-4 h-4" 
-                            fill="none" 
-                            stroke="currentColor" 
-                            viewBox="0 0 24 24"
-                          >
-                            <path 
-                              strokeLinecap="round" 
-                              strokeLinejoin="round" 
-                              strokeWidth={2} 
-                              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" 
-                            />
-                          </svg>
-                          <span>Download</span>
-                        </button>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
                 </div>
 
                 {/* Pagination */}
@@ -1208,11 +1217,10 @@ function AllListingsPageContent() {
                               <button
                                 key={pageNum}
                                 onClick={() => setCurrentPage(prev => ({ ...prev, [source]: pageNum }))}
-                                className={`relative inline-flex items-center px-3 py-1.5 border text-xs font-medium ${
-                                  currentPageNum === pageNum
-                                    ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
-                                    : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
-                                }`}
+                                className={`relative inline-flex items-center px-3 py-1.5 border text-xs font-medium ${currentPageNum === pageNum
+                                  ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                                  : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
+                                  }`}
                               >
                                 {pageNum}
                               </button>
@@ -1264,7 +1272,13 @@ function AllListingsPageContent() {
 export default function AllListingsPage() {
   return (
     <AuthGuard>
-      <AllListingsPageContent />
+      <Suspense fallback={
+        <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      }>
+        <AllListingsPageContent />
+      </Suspense>
     </AuthGuard>
   )
 }

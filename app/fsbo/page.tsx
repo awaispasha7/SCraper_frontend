@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState, useRef, useMemo } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, useRef, useMemo, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import ScraperRunButton from '@/app/components/ScraperRunButton'
 
 interface Listing {
@@ -24,8 +24,9 @@ interface ListingsData {
   listings: Listing[]
 }
 
-export default function Dashboard() {
+function DashboardContent() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   // Initialize data from sessionStorage if available (for navigation persistence)
   const [data, setData] = useState<ListingsData | null>(() => {
     if (typeof window !== 'undefined') {
@@ -122,6 +123,14 @@ export default function Dashboard() {
       mounted = false
     }
   }, [router])
+
+  // Handle deep-linking from enrichment log
+  useEffect(() => {
+    const search = searchParams.get('search')
+    if (search) {
+      setSearchQuery(search)
+    }
+  }, [searchParams])
 
   // Check for welcome message flag after authentication
   useEffect(() => {
@@ -1664,3 +1673,14 @@ export default function Dashboard() {
   )
 }
 
+export default function Dashboard() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    }>
+      <DashboardContent />
+    </Suspense>
+  )
+}
