@@ -109,6 +109,25 @@ export default function EnrichmentLogPage() {
         return () => clearInterval(interval)
     }, [isAuthenticated, stats?.is_running])
 
+    // Map listing source to route
+    const getSourceRoute = (source: string | null): string => {
+        if (!source) return '/all-listings'
+        const sourceMap: Record<string, string> = {
+            'forsalebyowner': '/fsbo',
+            'fsbo': '/fsbo',
+            'zillow-fsbo': '/zillow-fsbo',
+            'zillow fsbo': '/zillow-fsbo',
+            'zillow-frbo': '/zillow-frbo',
+            'zillow frbo': '/zillow-frbo',
+            'hotpads': '/hotpads',
+            'apartments': '/apartments',
+            'apartments.com': '/apartments',
+            'trulia': '/trulia',
+            'redfin': '/redfin'
+        }
+        return sourceMap[source.toLowerCase()] || '/all-listings'
+    }
+
     const triggerEnrichment = async () => {
         if (!confirm("Are you sure you want to trigger enrichment for the next 50 listings? This will incur costs.")) return
 
@@ -209,9 +228,13 @@ export default function EnrichmentLogPage() {
                                                 {new Date(item.checked_at).toLocaleString()}
                                             </td>
                                             <td className="px-6 py-4 text-sm font-medium text-gray-900 max-w-xs">
-                                                <div className="truncate" title={item.normalized_address}>
+                                                <Link
+                                                    href={`${getSourceRoute(item.listing_source)}?search=${encodeURIComponent(item.normalized_address.split(' ').slice(0, 3).join(' '))}`}
+                                                    className="truncate block text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
+                                                    title={`View in ${item.listing_source || 'All Listings'}`}
+                                                >
                                                     {item.normalized_address}
-                                                </div>
+                                                </Link>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <StatusBadge status={item.status} reason={item.failure_reason} />
@@ -231,8 +254,13 @@ export default function EnrichmentLogPage() {
                                                     <span className="text-gray-400 italic">No details</span>
                                                 )}
                                             </td>
-                                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                                {item.listing_source || 'Unknown'}
+                                            <td className="px-6 py-4 whitespace-nowrap text-sm">
+                                                <Link
+                                                    href={getSourceRoute(item.listing_source)}
+                                                    className="text-blue-600 hover:text-blue-800 hover:underline"
+                                                >
+                                                    {item.listing_source || 'Unknown'}
+                                                </Link>
                                             </td>
                                         </tr>
                                     ))
