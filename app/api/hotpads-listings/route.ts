@@ -21,11 +21,33 @@ export async function GET() {
         if (!error && listings && listings.length > 0) {
           console.log(`✅ Found ${listings.length} Hotpads listings in Supabase`)
 
+          // Get all address_hashes for batch lookup
+          const addressHashes = listings.map((l: any) => l.address_hash).filter(Boolean)
+
+          // Fetch enrichment states for these hashes
+          let enrichmentStates: Record<string, any> = {}
+          if (addressHashes.length > 0) {
+            const { data: stateData } = await dbClient
+              .from('property_owner_enrichment_state')
+              .select('address_hash, status, locked')
+              .in('address_hash', addressHashes)
+
+            if (stateData) {
+              enrichmentStates = stateData.reduce((acc: any, item: any) => {
+                acc[item.address_hash] = item
+                return acc
+              }, {})
+            }
+          }
+
           // Transform Supabase data to match frontend format
           const transformedListings = listings.map((listing: any) => {
             const convertToString = (val: any): string => {
               return val !== null && val !== undefined ? String(val) : ''
             }
+
+            // Get enrichment state using address_hash
+            const state = listing.address_hash ? enrichmentStates[listing.address_hash] : null
 
             return {
               id: listing.id,
@@ -41,10 +63,11 @@ export async function GET() {
               listing_date: listing.listing_date || null,
               email: listing.email || null,
               phone_number: listing.phone_number || null,
-              owner_name: listing?.owner_name || null,
-              mailing_address: listing?.mailing_address || null,
-              emails: listing?.emails || null,
-              phones: listing?.phones || null,
+              owner_name: listing.owner_name || null,
+              mailing_address: listing.mailing_address || null,
+              enrichment_status: state?.status || 'never_checked',
+              enrichment_locked: state?.locked || false,
+              address_hash: listing.address_hash || null,
               created_at: listing.created_at || null
             }
           })

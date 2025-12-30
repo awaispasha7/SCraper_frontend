@@ -3,6 +3,7 @@ import { fetchMelissaPersonatorData } from '@/lib/melissa-personator'
 import { supabase, supabaseAdmin } from '@/lib/supabase'
 import fs from 'fs'
 import path from 'path'
+import crypto from 'crypto'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,20 +35,73 @@ function loadOwnerDataLookup() {
   return ownerDataLookup
 }
 
-// Normalize address for matching
+// Normalize address for matching (Ported from Python backend utils/address_utils.py)
 function normalizeAddress(address: string): string {
   if (!address) return ''
-  return address
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, ' ')
-    .replace(/\b(ave|avenue|st|street|rd|road|dr|drive|blvd|boulevard|ln|lane|pl|place|ct|court|cir|circle)\b/gi, (match) => {
-      const abbrev: Record<string, string> = {
-        'avenue': 'ave', 'street': 'st', 'road': 'rd', 'drive': 'dr',
-        'boulevard': 'blvd', 'lane': 'ln', 'place': 'pl', 'court': 'ct', 'circle': 'cir'
-      }
-      return abbrev[match.toLowerCase()] || match.toLowerCase()
-    })
+
+  // Standardize to uppercase and strip whitespace
+  let addr = String(address).toUpperCase().trim()
+
+  // Remove common punctuation
+  addr = addr.replace(/[.,#\-]/g, ' ')
+  addr = addr.replace(/\s+/g, ' ').trim()
+
+  // Common Suffix Abbreviations
+  const suffixes: Record<string, string> = {
+    'STREET': 'ST',
+    'AVENUE': 'AVE',
+    'BOULEVARD': 'BLVD',
+    'DRIVE': 'DR',
+    'LANE': 'LN',
+    'COURT': 'CT',
+    'ROAD': 'RD',
+    'PLACE': 'PL',
+    'SQUARE': 'SQ',
+    'TERRACE': 'TER',
+    'PARKWAY': 'PKWY',
+    'CIRCLE': 'CIR',
+    'TRAIL': 'TRL',
+    'APARTMENT': 'UNIT',
+    'APT': 'UNIT',
+    'STE': 'UNIT',
+    'SUITE': 'UNIT',
+    'FL': 'UNIT',
+    'FLOOR': 'UNIT',
+  }
+
+  for (const [full, abbrev] of Object.entries(suffixes)) {
+    const regex = new RegExp(`\\b${full}\\b`, 'g')
+    addr = addr.replace(regex, abbrev)
+  }
+
+  // Directions
+  const directions: Record<string, string> = {
+    'NORTH': 'N',
+    'SOUTH': 'S',
+    'EAST': 'E',
+    'WEST': 'W',
+    'NORTHEAST': 'NE',
+    'NORTHWEST': 'NW',
+    'SOUTHEAST': 'SE',
+    'SOUTHWEST': 'SW',
+  }
+
+  for (const [full, abbrev] of Object.entries(directions)) {
+    const regex = new RegExp(`\\b${full}\\b`, 'g')
+    addr = addr.replace(regex, abbrev)
+  }
+
+  // Remove extra spaces again after replacements
+  addr = addr.replace(/\s+/g, ' ').trim()
+
+  return addr
+}
+
+// Hash generation to match Python backend
+function generateAddressHash(address: string): string {
+  const normalized = normalizeAddress(address)
+  if (!normalized) return ''
+  return crypto.createHash('md5').update(normalized).digest('hex')
 }
 
 // Lookup email and phone from CSV data
@@ -103,9 +157,44 @@ export async function GET(request: NextRequest) {
     console.log(`   Source: "${source || 'default'}"`)
     console.log(`   Using Atom API Key: ${atomApiKey.substring(0, 10)}...`)
 
+    const dbClient = supabaseAdmin || supabase
+
+    // STRATEGY 1: CHECK PROPERTY_OWNERS TABLE (The Source of Truth)
+    if (dbClient) {
+      try {
+        const addressHash = generateAddressHash(address)
+        console.log(`   Checking property_owners with hash: ${addressHash.substring(0, 8)}...`)
+
+        const { data: ownerData, error: ownerError } = await dbClient
+          .from('property_owners')
+          .select('*')
+          .eq('address_hash', addressHash)
+          .maybeSingle()
+
+        if (!ownerError && ownerData) {
+          // Check if it has meaningful data
+          if (ownerData.owner_name || ownerData.mailing_address) {
+            console.log('✅ Found enriched data in property_owners table!')
+
+            return NextResponse.json({
+              ownerName: ownerData.owner_name || null,
+              mailingAddress: ownerData.mailing_address || null,
+              email: ownerData.owner_email || null,
+              phone: ownerData.owner_phone || null,
+              allEmails: ownerData.owner_email ? [ownerData.owner_email] : [],
+              allPhones: ownerData.owner_phone ? [ownerData.owner_phone] : [],
+              propertyAddress: address,
+              source: 'property_owners_enriched'
+            })
+          }
+        }
+      } catch (e) {
+        console.warn('⚠️ Error checking property_owners:', e)
+      }
+    }
+
     // ALWAYS check Supabase tables FIRST for owner data
     // Check addresses table if source is "addresses", otherwise check listings table
-    const dbClient = supabaseAdmin || supabase
     if (dbClient) {
       try {
         // If source is "addresses", check addresses table first

@@ -517,11 +517,17 @@ export default function HomePage() {
       {/* Quick Actions Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8 sm:mb-12">
         <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100">
-          <div className="px-6 sm:px-8 py-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
+          <div className="px-6 sm:px-8 py-6 border-b border-gray-50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
             <div>
               <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Quick Actions</h2>
               <p className="text-sm text-gray-500 font-medium">Manage and monitor scraper controls</p>
             </div>
+            <Link
+              href="/enrichment-log"
+              className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-4 py-2 rounded-xl text-sm font-bold border border-blue-200 transition-all flex items-center gap-2"
+            >
+              <span>📋</span> View Enrichment Log
+            </Link>
           </div>
 
           <div className="p-6 sm:p-8">

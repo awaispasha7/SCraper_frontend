@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
 import ScraperRunButton from '@/app/components/ScraperRunButton'
+import EnrichmentBadge from '@/app/components/EnrichmentBadge'
 import { createClient } from '@/lib/supabase-client'
 
 interface ApartmentListing {
@@ -29,6 +30,8 @@ interface ApartmentListing {
   phones?: string | null
   title?: string | null
   full_address?: string | null
+  mailing_address?: string | null
+  enrichment_status?: string | null
 }
 
 interface ApartmentListingsData {
@@ -368,70 +371,76 @@ function ApartmentsPageContent() {
     return 'N/A'
   }
 
-  const normalizeForSearch = (text: string | null | undefined): string => {
-    if (!text || text === 'null' || text === 'None' || text === '') return ''
-    return String(text).toLowerCase().trim().replace(/\s+/g, ' ')
-  }
-
-  const filterListings = (listings: ApartmentListing[]): ApartmentListing[] => {
-    if (!searchQuery.trim()) {
-      return listings
+  // Robust Search Helpers (Ported from all-listings/page.tsx)
+  const toSearchableString = (value: any): string => {
+    if (value === null || value === undefined || value === '') return ''
+    if (Array.isArray(value)) {
+      return value.map(v => String(v || '')).filter(v => v).join(' ').toLowerCase()
     }
-
-    const query = normalizeForSearch(searchQuery)
-    if (!query) return listings
-
-    return listings.filter(listing => {
-      const addressRaw = listing.address
-      if (addressRaw) {
-        const addressStr = String(addressRaw).trim()
-        if (addressStr && addressStr !== 'null' && addressStr !== 'None' && addressStr !== '') {
-          const address = normalizeForSearch(addressStr)
-          if (address && address.includes(query)) return true
-        }
-      }
-
-      const ownerNameRaw = listing.owner_name
-      if (ownerNameRaw) {
-        const ownerNameStr = String(ownerNameRaw).trim()
-        if (ownerNameStr && ownerNameStr !== 'null' && ownerNameStr !== 'None' && ownerNameStr !== '') {
-          const ownerName = normalizeForSearch(ownerNameStr)
-          if (ownerName && ownerName.includes(query)) return true
-        }
-      }
-
-      const neighborhoodRaw = listing.neighborhood
-      if (neighborhoodRaw) {
-        const neighborhoodStr = String(neighborhoodRaw).trim()
-        if (neighborhoodStr && neighborhoodStr !== 'null' && neighborhoodStr !== 'None' && neighborhoodStr !== '') {
-          const neighborhood = normalizeForSearch(neighborhoodStr)
-          if (neighborhood && neighborhood.includes(query)) return true
-        }
-      }
-
-      const descriptionRaw = listing.description
-      if (descriptionRaw) {
-        const descriptionStr = String(descriptionRaw).trim()
-        if (descriptionStr && descriptionStr !== 'null' && descriptionStr !== 'None' && descriptionStr !== '') {
-          const description = normalizeForSearch(descriptionStr)
-          if (description && description.includes(query)) return true
-        }
-      }
-
-      const cityRaw = listing.city
-      if (cityRaw) {
-        const cityStr = String(cityRaw).trim()
-        if (cityStr && cityStr !== 'null' && cityStr !== 'None' && cityStr !== '') {
-          const city = normalizeForSearch(cityStr)
-          if (city && city.includes(query)) return true
-        }
-      }
-
-      return false
-    })
+    const str = String(value).trim()
+    if (str === '' || str === 'null' || str === 'undefined') return ''
+    return str.replace(/,/g, ' ').toLowerCase()
   }
 
-  const filteredListings = data?.listings ? filterListings(data.listings) : []
+  const normalizePrice = (value: any): string => {
+    if (value === null || value === undefined || value === '') return ''
+    return String(value).toLowerCase().replace(/[^0-9]/g, '')
+  }
+
+  const matchesExactNumber = (value: any, searchNumber: string): boolean => {
+    if (value === null || value === undefined || value === '' || !searchNumber) return false
+    const normalizedValue = normalizePrice(value)
+    return normalizedValue === searchNumber
+  }
+
+  const matchesPrice = (value: any, query: string, normalizedQuery: string): boolean => {
+    if (value === null || value === undefined || value === '') return false
+    const valueStr = String(value).toLowerCase().trim()
+    const normalizedValue = normalizePrice(value)
+    if (!normalizedQuery) return valueStr.includes(query)
+    if (normalizedValue === normalizedQuery) return true
+    if (valueStr.includes(query)) return true
+    if (normalizedQuery.length < normalizedValue.length && normalizedValue.startsWith(normalizedQuery)) return true
+    return false
+  }
+
+  // Filter listings based on search query
+  const filteredListings = useMemo(() => {
+    if (!data?.listings) return []
+    if (!searchQuery.trim()) return data.listings
+
+    const query = searchQuery.toLowerCase().trim()
+    const normalizedQuery = normalizePrice(query)
+    const searchNumber = query.match(/\d+/) ? query.match(/\d+/)![0] : ''
+    const normalizedSearchNumber = normalizePrice(searchNumber)
+
+    return data.listings.filter(listing => {
+      return (
+        // Address match
+        (listing.address && listing.address.toLowerCase().includes(query)) ||
+        (listing.full_address && listing.full_address.toLowerCase().includes(query)) ||
+        (listing.street && listing.street.toLowerCase().includes(query)) ||
+        // Price match
+        (listing.price && matchesPrice(listing.price, query, normalizedQuery)) ||
+        // Beds/Baths match
+        (normalizedSearchNumber && (
+          (listing.beds && matchesExactNumber(listing.beds, normalizedSearchNumber)) ||
+          (listing.baths && matchesExactNumber(listing.baths, normalizedSearchNumber))
+        )) ||
+        // Square feet
+        (listing.square_feet && matchesPrice(listing.square_feet, query, normalizedQuery)) ||
+        // Details
+        (listing.neighborhood && listing.neighborhood.toLowerCase().includes(query)) ||
+        (listing.city && listing.city.toLowerCase().includes(query)) ||
+        (listing.description && listing.description.toLowerCase().includes(query)) ||
+        // Owner Details
+        (listing.owner_name && listing.owner_name.toLowerCase().includes(query)) ||
+        (listing.mailing_address && listing.mailing_address.toLowerCase().includes(query)) ||
+        (listing.owner_email && listing.owner_email.toLowerCase().includes(query)) ||
+        (listing.phone_numbers && toSearchableString(listing.phone_numbers).includes(query))
+      )
+    })
+  }, [data?.listings, searchQuery])
 
   // Reset to first page when search query changes
   useEffect(() => {
@@ -614,7 +623,7 @@ function ApartmentsPageContent() {
             const endIndex = startIndex + listingsPerPage
             const currentListings = filteredListings.slice(startIndex, endIndex)
 
-            return currentListings.map((listing) => (
+            return currentListings.map((listing: ApartmentListing) => (
               <div
                 key={listing.id}
                 className="bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl sm:hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-cyan-300 transform hover:-translate-y-0.5 sm:hover:-translate-y-1"
@@ -628,9 +637,12 @@ function ApartmentsPageContent() {
                       </h2>
                     )}
                     {/* Show address - prioritize full_address, then address, then street */}
-                    <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
-                      {listing.full_address || listing.address || listing.street || 'Address Not Available'}
-                    </h3>
+                    <div className="flex justify-between items-start gap-2 mb-1">
+                      <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight">
+                        {listing.full_address || listing.address || listing.street || 'Address Not Available'}
+                      </h3>
+                      <EnrichmentBadge status={listing.enrichment_status} />
+                    </div>
                     {/* Show street separately if it's different from the main address */}
                     {listing.street && listing.street !== listing.full_address && listing.street !== listing.address && (
                       <p className="text-gray-500 text-xs sm:text-sm font-medium mt-1">{listing.street}</p>

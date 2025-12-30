@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase-client'
 
 interface Address {
@@ -53,20 +53,20 @@ export default function AddressesPage() {
   const handleLogout = async () => {
     try {
       const supabase = createClient()
-      
+
       // Set flag to prevent auto-redirect on login page
       localStorage.setItem('justLoggedOut', 'true')
-      
+
       // Sign out from Supabase
       await supabase.auth.signOut()
-      
+
       // Clear all auth-related data
       localStorage.removeItem('isAuthenticated')
       localStorage.removeItem('userEmail')
-      
+
       // Wait a moment to ensure session is cleared
       await new Promise(resolve => setTimeout(resolve, 200))
-      
+
       // Redirect to login page
       window.location.href = '/login'
     } catch (err) {
@@ -112,20 +112,20 @@ export default function AddressesPage() {
     // Create blob with UTF-8 BOM for Excel compatibility
     const BOM = '\uFEFF'
     const blob = new Blob([BOM + csvData], { type: 'text/csv;charset=utf-8;' })
-    
+
     // Create download link
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    
+
     // Generate filename from address
     const filename = `${addr.address.replace(/[^a-z0-9]/gi, '_').toLowerCase()}_${addr.city}_${addr.state}_${addr.zip}.csv`
     link.setAttribute('download', filename)
-    
+
     // Trigger download
     document.body.appendChild(link)
     link.click()
-    
+
     // Cleanup
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
@@ -140,9 +140,9 @@ export default function AddressesPage() {
     }
 
     // Check if we're returning from owner-info page
-    const returningFromOwnerInfo = typeof window !== 'undefined' && 
+    const returningFromOwnerInfo = typeof window !== 'undefined' &&
       (sessionStorage.getItem('returningFromOwnerInfo') || sessionStorage.getItem('preventScrollRestore'))
-    
+
     // If returning from owner-info AND we have cached data, use it and don't fetch
     if (returningFromOwnerInfo && addresses && addresses.length > 0) {
       // Use cached data, don't fetch
@@ -154,33 +154,33 @@ export default function AddressesPage() {
     fetchAddresses()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  
+
   // Restore scroll position after data loads (matching Redfin logic)
   useEffect(() => {
     if (!addresses || addresses.length === 0) return
-    
+
     // Restore scroll position when returning from owner-info page
     if (typeof window !== 'undefined') {
       const savedScrollPosition = sessionStorage.getItem('addressesScrollPosition')
       const returningFromOwnerInfo = sessionStorage.getItem('returningFromOwnerInfo')
       const preventScrollRestore = sessionStorage.getItem('preventScrollRestore')
       const sourcePage = sessionStorage.getItem('sourcePage')
-      
+
       // Only restore if we're returning from owner-info and on the correct page
       if (savedScrollPosition && (returningFromOwnerInfo || preventScrollRestore) && sourcePage === 'addresses') {
         const scrollPos = parseInt(savedScrollPosition, 10)
-        
+
         // Wait for DOM to be ready and content to render
         const restoreScroll = () => {
           window.scrollTo({ top: scrollPos, behavior: 'auto' })
         }
-        
+
         // Try multiple times to ensure it works (matching Redfin approach)
         setTimeout(restoreScroll, 50)
         setTimeout(restoreScroll, 100)
         setTimeout(restoreScroll, 200)
         setTimeout(restoreScroll, 500)
-        
+
         // Clear the flags after restoring
         setTimeout(() => {
           sessionStorage.removeItem('returningFromOwnerInfo')
@@ -210,7 +210,7 @@ export default function AddressesPage() {
       }
 
       const result = await response.json()
-      
+
       if (result.error) {
         throw new Error(result.error)
       }
@@ -228,7 +228,7 @@ export default function AddressesPage() {
       }))
 
       setAddresses(formattedAddresses)
-      
+
       // Cache addresses data in sessionStorage
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('addressesData', JSON.stringify(formattedAddresses))
@@ -242,20 +242,45 @@ export default function AddressesPage() {
   }
 
 
+  // Robust Search Helpers (Ported from all-listings/page.tsx)
+  const toSearchableString = (value: any): string => {
+    if (value === null || value === undefined || value === '') return ''
+    if (Array.isArray(value)) {
+      return value.map(v => String(v || '')).filter(v => v).join(' ').toLowerCase()
+    }
+    const str = String(value).trim()
+    if (str === '' || str === 'null' || str === 'undefined') return ''
+    return str.replace(/,/g, ' ').toLowerCase()
+  }
+
+  const normalizePrice = (value: any): string => {
+    if (value === null || value === undefined || value === '') return ''
+    return String(value).toLowerCase().replace(/[^0-9]/g, '')
+  }
+
   // Filter addresses based on search query (including owner information)
-  const filteredAddresses = addresses.filter(addr => {
-    const query = searchQuery.toLowerCase()
-    return (
-      addr.address.toLowerCase().includes(query) ||
-      addr.city.toLowerCase().includes(query) ||
-      addr.state.toLowerCase().includes(query) ||
-      addr.zip.toLowerCase().includes(query) ||
-      (addr.ownerName && addr.ownerName.toLowerCase().includes(query)) ||
-      (addr.mailingAddress && addr.mailingAddress.toLowerCase().includes(query)) ||
-      (addr.emails && addr.emails.toLowerCase().includes(query)) ||
-      (addr.phones && addr.phones.toLowerCase().includes(query))
-    )
-  })
+  const filteredAddresses = useMemo(() => {
+    if (!addresses) return []
+    if (!searchQuery.trim()) return addresses
+
+    const query = searchQuery.toLowerCase().trim()
+    const normalizedQuery = normalizePrice(query)
+
+    return addresses.filter(addr => {
+      return (
+        // Address match
+        addr.address.toLowerCase().includes(query) ||
+        addr.city.toLowerCase().includes(query) ||
+        addr.state.toLowerCase().includes(query) ||
+        addr.zip.toLowerCase().includes(query) ||
+        // Owner Details
+        (addr.ownerName && addr.ownerName.toLowerCase().includes(query)) ||
+        (addr.mailingAddress && addr.mailingAddress.toLowerCase().includes(query)) ||
+        (addr.emails && toSearchableString(addr.emails).includes(query)) ||
+        (addr.phones && toSearchableString(addr.phones).includes(query))
+      )
+    })
+  }, [addresses, searchQuery])
 
   if (loading) {
     return (
@@ -412,7 +437,7 @@ export default function AddressesPage() {
                         {addr.city}
                       </div>
                     </div>
-                    
+
                     {/* State */}
                     <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200">
                       <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">State</div>
@@ -420,7 +445,7 @@ export default function AddressesPage() {
                         {addr.state}
                       </div>
                     </div>
-                    
+
                     {/* ZIP */}
                     <div className="bg-gray-50 rounded-lg p-2 sm:p-3 border border-gray-200 col-span-2">
                       <div className="text-xs sm:text-sm text-gray-600 font-medium mb-1">ZIP Code</div>
@@ -435,14 +460,14 @@ export default function AddressesPage() {
                     <button
                       onClick={(e) => {
                         e.preventDefault()
-                        
+
                         // Store current scroll position before navigation
                         if (typeof window !== 'undefined') {
                           const scrollY = window.scrollY
                           sessionStorage.setItem('addressesScrollPosition', scrollY.toString())
                           sessionStorage.setItem('preventScrollRestore', 'true')
                           sessionStorage.setItem('sourcePage', 'addresses')
-                          
+
                           // Navigate to owner-info page (using window.location to prevent Next.js auto-scroll)
                           const fullAddress = `${addr.address}, ${addr.city}, ${addr.state} ${addr.zip}`
                           const params = new URLSearchParams({
@@ -464,18 +489,18 @@ export default function AddressesPage() {
                       }}
                       className="w-full bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-300 text-center py-2.5 sm:py-3 rounded-lg hover:from-blue-100 hover:to-blue-200 active:from-blue-200 active:to-blue-300 transition-all duration-200 font-semibold shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transform hover:scale-[1.02] active:scale-[0.98]"
                     >
-                      <svg 
-                        className="w-4 h-4 sm:w-5 sm:h-5" 
-                        fill="none" 
-                        stroke="currentColor" 
+                      <svg
+                        className="w-4 h-4 sm:w-5 sm:h-5"
+                        fill="none"
+                        stroke="currentColor"
                         viewBox="0 0 24 24"
                         xmlns="http://www.w3.org/2000/svg"
                       >
-                        <path 
-                          strokeLinecap="round" 
-                          strokeLinejoin="round" 
-                          strokeWidth={2.5} 
-                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" 
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2.5}
+                          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"
                         />
                       </svg>
                       <span className="hidden sm:inline">Download Details</span>

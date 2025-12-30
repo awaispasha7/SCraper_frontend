@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import ScraperRunButton from '@/app/components/ScraperRunButton'
 
@@ -260,23 +260,22 @@ export default function Dashboard() {
     }
   }, [data]) // Run when data changes
 
-  // Function to check if property is sold
+  // Function to check if property is sold (Relaxed)
   const isPropertySold = (listing: Listing): boolean => {
-    // Check address, price, and other fields for sold indicators
+    // Check price and address for specific sold keywords
+    const price = (listing.price || '').toLowerCase().trim()
     const address = (listing.address || '').toLowerCase()
-    const price = (listing.price || '').toLowerCase()
 
+    // Only mark as sold if it's very clear in the price field or address
     const soldIndicators = [
-      'sold',
-      'this property has been sold',
+      'sold!',
       'property sold',
-      'no longer available',
-      'listing removed',
-      'off market',
+      'this property has been sold',
+      'no longer available'
     ]
 
-    const combinedText = `${address} ${price}`.toLowerCase()
-    return soldIndicators.some(indicator => combinedText.includes(indicator))
+    // Most indicators for "Sold" in FSBO sites are in the price field
+    return soldIndicators.some(indicator => price.includes(indicator))
   }
 
   const fetchListings = async () => {
@@ -863,142 +862,72 @@ export default function Dashboard() {
     window.URL.revokeObjectURL(url)
   }
 
-  // Helper function to normalize text for search (remove extra spaces, trim, lowercase)
-  const normalizeForSearch = (text: string | null | undefined): string => {
-    if (!text || text === 'null' || text === 'None' || text === '') return ''
-    // Convert to string, trim, lowercase, and normalize whitespace
-    return String(text).toLowerCase().trim().replace(/\s+/g, ' ')
+  // Robust Search Helpers (Ported from all-listings/page.tsx)
+  const toSearchableString = (value: any): string => {
+    if (value === null || value === undefined || value === '') return ''
+    if (Array.isArray(value)) {
+      return value.map(v => String(v || '')).filter(v => v).join(' ').toLowerCase()
+    }
+    const str = String(value).trim()
+    if (str === '' || str === 'null' || str === 'undefined') return ''
+    return str.replace(/,/g, ' ').toLowerCase()
   }
 
-  // Helper function to check if query matches text (more precise matching for owner names)
-  const matchesSearch = (text: string, query: string): boolean => {
-    if (!text || !query) return false
+  const normalizePrice = (value: any): string => {
+    if (value === null || value === undefined || value === '') return ''
+    return String(value).toLowerCase().replace(/[^0-9]/g, '')
+  }
 
-    // Normalize both for comparison
-    const normalizedText = text.toLowerCase().trim()
-    const normalizedQuery = query.toLowerCase().trim()
+  const matchesExactNumber = (value: any, searchNumber: string): boolean => {
+    if (value === null || value === undefined || value === '' || !searchNumber) return false
+    const normalizedValue = normalizePrice(value)
+    return normalizedValue === searchNumber
+  }
 
-    // 1. Exact match (case-insensitive)
-    if (normalizedText === normalizedQuery) return true
-
-    // 2. Direct substring match (query is contained in text)
-    if (normalizedText.includes(normalizedQuery)) return true
-
-    // 3. Split into words for word-by-word matching
-    const queryWords = normalizedQuery.split(/\s+/).filter(w => w.length > 0)
-    const textWords = normalizedText.split(/\s+/).filter(w => w.length > 0)
-
-    // If query is a single word, check if it matches any word in text
-    if (queryWords.length === 1) {
-      const queryWord = queryWords[0]
-      // For single word, check if it's an exact match of any word OR starts with it
-      return textWords.some(word => {
-        // Exact word match
-        if (word === queryWord) return true
-        // Word starts with query (for partial matching like "John" matching "Johnny")
-        if (word.startsWith(queryWord) && queryWord.length >= 3) return true
-        // Query starts with word (for reverse partial matching)
-        if (queryWord.startsWith(word) && word.length >= 3) return true
-        return false
-      })
-    }
-
-    // Multiple words - all words must be present (in any order)
-    if (queryWords.length > 1) {
-      // Check if all query words are found in text
-      return queryWords.every(queryWord => {
-        return textWords.some(textWord => {
-          // Exact word match
-          if (textWord === queryWord) return true
-          // Word starts with query word (for partial matching)
-          if (textWord.startsWith(queryWord) && queryWord.length >= 3) return true
-          // Query word starts with text word (for reverse partial matching)
-          if (queryWord.startsWith(textWord) && textWord.length >= 3) return true
-          return false
-        })
-      })
-    }
-
+  const matchesPrice = (value: any, query: string, normalizedQuery: string): boolean => {
+    if (value === null || value === undefined || value === '') return false
+    const valueStr = String(value).toLowerCase().trim()
+    const normalizedValue = normalizePrice(value)
+    if (!normalizedQuery) return valueStr.includes(query)
+    if (normalizedValue === normalizedQuery) return true
+    if (valueStr.includes(query)) return true
+    if (normalizedQuery.length < normalizedValue.length && normalizedValue.startsWith(normalizedQuery)) return true
     return false
   }
 
   // Filter listings based on search query
-  const filterListings = (listings: Listing[]): Listing[] => {
-    if (!searchQuery.trim()) {
-      return listings
-    }
+  const filteredListings = useMemo(() => {
+    if (!data?.listings) return []
+    if (!searchQuery.trim()) return data.listings
 
-    // Normalize search query (remove extra spaces, trim, lowercase)
-    const query = normalizeForSearch(searchQuery)
+    const query = searchQuery.toLowerCase().trim()
+    const normalizedQuery = normalizePrice(query)
+    const searchNumber = query.match(/\d+/) ? query.match(/\d+/)![0] : ''
+    const normalizedSearchNumber = normalizePrice(searchNumber)
 
-    if (!query) return listings
-
-    return listings.filter(listing => {
-      // Search ONLY in owner name and mailing address (not email, phone, or other fields)
-
-      // Search in owner name (handle null, undefined, 'null', 'None', empty string)
-      // Use STRICT matching for owner names to avoid false positives
-      const ownerNameRaw = listing.owner_name
-      if (ownerNameRaw) {
-        const ownerNameStr = String(ownerNameRaw).trim()
-        if (ownerNameStr && ownerNameStr !== 'null' && ownerNameStr !== 'None' && ownerNameStr !== '') {
-          const ownerName = normalizeForSearch(ownerNameStr)
-          if (ownerName && ownerName.length > 0) {
-            // 1. Exact match (case-insensitive) - highest priority
-            if (ownerName === query) return true
-
-            // 2. Owner name starts with query (for partial name search like "John" matching "John Smith")
-            if (ownerName.startsWith(query) && query.length >= 3) return true
-
-            // 3. Query is a complete word in owner name (for searching last name or company name)
-            const ownerWords = ownerName.split(/\s+/)
-            const queryWords = query.split(/\s+/)
-
-            // If query is single word, check if it matches any complete word in owner name
-            if (queryWords.length === 1) {
-              const queryWord = queryWords[0]
-              if (ownerWords.some(word => word === queryWord || word.startsWith(queryWord))) {
-                return true
-              }
-            }
-
-            // If query has multiple words, all must be present as complete words
-            if (queryWords.length > 1) {
-              const allWordsMatch = queryWords.every(queryWord => {
-                return ownerWords.some(ownerWord => ownerWord === queryWord || ownerWord.startsWith(queryWord))
-              })
-              if (allWordsMatch) return true
-            }
-
-            // 4. Owner name contains query as substring (only if query is substantial)
-            if (ownerName.includes(query) && query.length >= 4) return true
-          }
-        }
-      }
-
-      // Search in mailing address
-      const mailingAddressRaw = listing.mailing_address
-      if (mailingAddressRaw) {
-        const mailingAddressStr = String(mailingAddressRaw).trim()
-        if (mailingAddressStr && mailingAddressStr !== 'null' && mailingAddressStr !== 'None' && mailingAddressStr !== '') {
-          const mailingAddress = normalizeForSearch(mailingAddressStr)
-          if (mailingAddress && mailingAddress.length > 0) {
-            // Simple substring match (most reliable)
-            if (mailingAddress.includes(query)) return true
-            // Reverse match (query contains mailing address)
-            if (query.includes(mailingAddress)) return true
-            // Word-by-word match for multi-word queries
-            if (matchesSearch(mailingAddress, query)) return true
-          }
-        }
-      }
-
-      return false
+    return data.listings.filter(listing => {
+      return (
+        // Address match
+        (listing.address && listing.address.toLowerCase().includes(query)) ||
+        // Price match
+        (listing.price && matchesPrice(listing.price, query, normalizedQuery)) ||
+        // Beds/Baths match
+        (normalizedSearchNumber && (
+          (listing.beds && matchesExactNumber(listing.beds, normalizedSearchNumber)) ||
+          (listing.baths && matchesExactNumber(listing.baths, normalizedSearchNumber))
+        )) ||
+        // Square feet
+        (listing.square_feet && matchesPrice(listing.square_feet, query, normalizedQuery)) ||
+        // Owner Details
+        (listing.owner_name && listing.owner_name.toLowerCase().includes(query)) ||
+        (listing.mailing_address && listing.mailing_address.toLowerCase().includes(query)) ||
+        (listing.owner_emails && toSearchableString(listing.owner_emails).includes(query)) ||
+        (listing.owner_phones && toSearchableString(listing.owner_phones).includes(query))
+      )
     })
-  }
+  }, [data?.listings, searchQuery])
 
   // Get filtered listings
-  const filteredListings = data?.listings ? filterListings(data.listings) : []
 
   if (loading && !isSyncing) {
     return (
@@ -1362,7 +1291,7 @@ export default function Dashboard() {
               const endIndex = startIndex + listingsPerPage
               const currentListings = filteredListings.slice(startIndex, endIndex)
 
-              return currentListings.map((listing, index) => {
+              return currentListings.map((listing: Listing, index: number) => {
                 // Check if listing is new (not in stored previous URLs)
                 const storedUrls = typeof window !== 'undefined'
                   ? JSON.parse(localStorage.getItem('previousListingUrls') || '[]')

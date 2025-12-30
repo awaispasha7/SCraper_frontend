@@ -16,12 +16,29 @@ export async function GET() {
         const { data: listings, error } = await dbClient
           .from('zillow_frbo_listings')
           .select('*')
-          // Removed strict filter to allow all scraped data to show
-          // .or('address.ilike.%, IL%,address.ilike.% Illinois%,address.ilike.%Chicago%')
           .order('id', { ascending: true })
 
         if (!error && listings && listings.length > 0) {
           console.log(`✅ Found ${listings.length} Zillow FRBO listings in Supabase`)
+
+          // Get all address_hashes for batch lookup
+          const addressHashes = listings.map((l: any) => l.address_hash).filter(Boolean)
+
+          // Fetch enrichment states for these hashes
+          let enrichmentStates: Record<string, any> = {}
+          if (addressHashes.length > 0) {
+            const { data: stateData } = await dbClient
+              .from('property_owner_enrichment_state')
+              .select('address_hash, status, locked')
+              .in('address_hash', addressHashes)
+
+            if (stateData) {
+              enrichmentStates = stateData.reduce((acc: any, item: any) => {
+                acc[item.address_hash] = item
+                return acc
+              }, {})
+            }
+          }
 
           // Transform Supabase data to match frontend format
           const transformedListings = listings.map((listing: any) => {
@@ -32,6 +49,9 @@ export async function GET() {
             // Parse "2 Beds 1 Baths" format into separate fields
             const bedMatch = listing.beds_baths?.match(/(\d+)\s*Bed/i)
             const bathMatch = listing.beds_baths?.match(/(\d+\.?\d*)\s*Bath/i)
+
+            // Get enrichment state using address_hash
+            const state = listing.address_hash ? enrichmentStates[listing.address_hash] : null
 
             return {
               id: listing.id,
@@ -44,10 +64,11 @@ export async function GET() {
               property_type: 'Rental',
               year_built: listing.year_built || null,
               phone_number: listing.phone_number || null,
-              owner_name: listing?.owner_name || null,
-              mailing_address: listing?.mailing_address || null,
-              emails: listing?.emails || null,
-              phones: listing?.phones || null,
+              owner_name: listing.owner_name || null,
+              mailing_address: listing.mailing_address || null,
+              enrichment_status: state?.status || 'never_checked',
+              enrichment_locked: state?.locked || false,
+              address_hash: listing.address_hash || null,
               created_at: listing.created_at || null
             }
           })

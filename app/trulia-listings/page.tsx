@@ -1,10 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
 import ScraperRunButton from '@/app/components/ScraperRunButton'
+import EnrichmentBadge from '@/app/components/EnrichmentBadge'
 import { createClient } from '@/lib/supabase-client'
 
 interface TruliaListing {
@@ -27,6 +28,7 @@ interface TruliaListing {
   is_recently_sold: boolean
   is_foreclosure: boolean
   title: string
+  enrichment_status?: string | null
 }
 
 interface TruliaListingsData {
@@ -343,58 +345,74 @@ function TruliaListingsPageContent() {
     return 'N/A'
   }
 
-  // Helper function to normalize text for search
-  const normalizeForSearch = (text: string | null | undefined): string => {
-    if (!text || text === 'null' || text === 'None' || text === '') return ''
-    return String(text).toLowerCase().trim().replace(/\s+/g, ' ')
+  // Robust Search Helpers (Ported from all-listings/page.tsx)
+  const toSearchableString = (value: any): string => {
+    if (value === null || value === undefined || value === '') return ''
+    if (Array.isArray(value)) {
+      return value.map(v => String(v || '')).filter(v => v).join(' ').toLowerCase()
+    }
+    const str = String(value).trim()
+    if (str === '' || str === 'null' || str === 'undefined') return ''
+    return str.replace(/,/g, ' ').toLowerCase()
+  }
+
+  const normalizePrice = (value: any): string => {
+    if (value === null || value === undefined || value === '') return ''
+    return String(value).toLowerCase().replace(/[^0-9]/g, '')
+  }
+
+  const matchesExactNumber = (value: any, searchNumber: string): boolean => {
+    if (value === null || value === undefined || value === '' || !searchNumber) return false
+    const normalizedValue = normalizePrice(value)
+    return normalizedValue === searchNumber
+  }
+
+  const matchesPrice = (value: any, query: string, normalizedQuery: string): boolean => {
+    if (value === null || value === undefined || value === '') return false
+    const valueStr = String(value).toLowerCase().trim()
+    const normalizedValue = normalizePrice(value)
+    if (!normalizedQuery) return valueStr.includes(query)
+    if (normalizedValue === normalizedQuery) return true
+    if (valueStr.includes(query)) return true
+    if (normalizedQuery.length < normalizedValue.length && normalizedValue.startsWith(normalizedQuery)) return true
+    return false
   }
 
   // Filter listings based on search query
-  const filterListings = (listings: TruliaListing[]): TruliaListing[] => {
-    if (!searchQuery.trim()) {
-      return listings
-    }
+  const filteredListings = useMemo(() => {
+    if (!data?.listings) return []
+    if (!searchQuery.trim()) return data.listings
 
-    const query = normalizeForSearch(searchQuery)
-    if (!query) return listings
+    const query = searchQuery.toLowerCase().trim()
+    const normalizedQuery = normalizePrice(query)
+    const searchNumber = query.match(/\d+/) ? query.match(/\d+/)![0] : ''
+    const normalizedSearchNumber = normalizePrice(searchNumber)
 
-    return listings.filter(listing => {
-      // Search in property address
-      const addressRaw = listing.address
-      if (addressRaw) {
-        const addressStr = String(addressRaw).trim()
-        if (addressStr && addressStr !== 'null' && addressStr !== 'None' && addressStr !== '') {
-          const address = normalizeForSearch(addressStr)
-          if (address && address.includes(query)) return true
-        }
-      }
-
-      // Search in owner name
-      const ownerNameRaw = listing.owner_name
-      if (ownerNameRaw) {
-        const ownerNameStr = String(ownerNameRaw).trim()
-        if (ownerNameStr && ownerNameStr !== 'null' && ownerNameStr !== 'None' && ownerNameStr !== '') {
-          const ownerName = normalizeForSearch(ownerNameStr)
-          if (ownerName && ownerName.includes(query)) return true
-        }
-      }
-
-      // Search in mailing address
-      const mailingAddressRaw = listing.mailing_address
-      if (mailingAddressRaw) {
-        const mailingAddressStr = String(mailingAddressRaw).trim()
-        if (mailingAddressStr && mailingAddressStr !== 'null' && mailingAddressStr !== 'None' && mailingAddressStr !== '') {
-          const mailingAddress = normalizeForSearch(mailingAddressStr)
-          if (mailingAddress && mailingAddress.includes(query)) return true
-        }
-      }
-
-      return false
+    return data.listings.filter(listing => {
+      return (
+        // Address match
+        (listing.address && listing.address.toLowerCase().includes(query)) ||
+        // Price match
+        (listing.price && matchesPrice(listing.price, query, normalizedQuery)) ||
+        // Beds/Baths match
+        (normalizedSearchNumber && (
+          (listing.beds && matchesExactNumber(listing.beds, normalizedSearchNumber)) ||
+          (listing.baths && matchesExactNumber(listing.baths, normalizedSearchNumber))
+        )) ||
+        // Square feet
+        (listing.square_feet && matchesPrice(listing.square_feet, query, normalizedQuery)) ||
+        // Details
+        (listing.property_type && listing.property_type.toLowerCase().includes(query)) ||
+        // Owner Details
+        (listing.owner_name && listing.owner_name.toLowerCase().includes(query)) ||
+        (listing.mailing_address && listing.mailing_address.toLowerCase().includes(query)) ||
+        (listing.emails && toSearchableString(listing.emails).includes(query)) ||
+        (listing.phones && toSearchableString(listing.phones).includes(query))
+      )
     })
-  }
+  }, [data?.listings, searchQuery])
 
   // Get filtered listings
-  const filteredListings = data?.listings ? filterListings(data.listings) : []
 
   if (loading) {
     return (
@@ -589,16 +607,19 @@ function TruliaListingsPageContent() {
             const endIndex = startIndex + listingsPerPage
             const currentListings = filteredListings.slice(startIndex, endIndex)
 
-            return currentListings.map((listing) => (
+            return currentListings.map((listing: TruliaListing) => (
               <div
                 key={listing.id}
                 className="bg-white rounded-xl sm:rounded-2xl shadow-md sm:shadow-lg hover:shadow-xl sm:hover:shadow-2xl transition-all duration-300 overflow-hidden border border-gray-200 hover:border-cyan-300 transform hover:-translate-y-0.5 sm:hover:-translate-y-1 flex flex-col h-full"
               >
                 <div className="p-4 sm:p-5 lg:p-6 flex flex-col h-full">
                   <div className="mb-3 sm:mb-4">
-                    <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight mb-1">
-                      {listing.address || 'Address Not Available'}
-                    </h3>
+                    <div className="flex justify-between items-start gap-2 mb-1">
+                      <h3 className="text-base sm:text-lg font-bold text-gray-900 line-clamp-2 leading-tight">
+                        {listing.address || 'Address Not Available'}
+                      </h3>
+                      <EnrichmentBadge status={listing.enrichment_status} />
+                    </div>
                   </div>
 
                   <div className="mb-3 sm:mb-4 flex flex-wrap gap-2">

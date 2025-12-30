@@ -25,6 +25,25 @@ export async function GET() {
         } else if (listings && listings.length > 0) {
           console.log(`✅ Found ${listings.length} Apartments listings in Supabase`)
 
+          // Get all address_hashes for batch lookup
+          const addressHashes = listings.map((l: any) => l.address_hash).filter(Boolean)
+
+          // Fetch enrichment states for these hashes
+          let enrichmentStates: Record<string, any> = {}
+          if (addressHashes.length > 0) {
+            const { data: stateData } = await dbClient
+              .from('property_owner_enrichment_state')
+              .select('address_hash, status, locked')
+              .in('address_hash', addressHashes)
+
+            if (stateData) {
+              enrichmentStates = stateData.reduce((acc: any, item: any) => {
+                acc[item.address_hash] = item
+                return acc
+              }, {})
+            }
+          }
+
           // Transform Supabase data to match frontend format
           const transformedListings = listings.map((listing: any) => {
             const convertToString = (val: any): string => {
@@ -32,14 +51,9 @@ export async function GET() {
             }
 
             // Map CSV columns to frontend format
-            // listing_url -> listing_link
-            // title or full_address -> address
-            // price, beds, baths, sqft -> direct mapping
-            // owner_name, owner_email, phone_numbers -> fetch from Supabase
-            // Note: CSV columns: listing_url, title, price, beds, baths, sqft, owner_name, owner_email, phone_numbers, full_address, street, city, state, zip_code, neighborhood, description
             const address = listing.full_address || listing.title || 'Address Not Available'
 
-            // Parse owner_email - handle JSONB array or string format (similar to FSBO)
+            // Parse owner_email - handle JSONB array or string format
             let emails: string[] = []
             if (listing.owner_email) {
               if (Array.isArray(listing.owner_email)) {
@@ -48,7 +62,6 @@ export async function GET() {
                 try {
                   emails = JSON.parse(listing.owner_email)
                 } catch (e) {
-                  // If not valid JSON, treat as single email or comma-separated
                   emails = listing.owner_email.split(/[,\n]/).map((e: string) => e.trim()).filter((e: string) => e && e.includes('@'))
                 }
               }
@@ -63,18 +76,20 @@ export async function GET() {
                 try {
                   phones = JSON.parse(listing.phone_numbers)
                 } catch (e) {
-                  // If not valid JSON, treat as comma-separated or single phone
                   phones = listing.phone_numbers.split(/[,\n]/).map((p: string) => p.trim()).filter((p: string) => p && /[\d-]/.test(p))
                 }
               }
             }
+
+            // Get enrichment state using address_hash
+            const state = listing.address_hash ? enrichmentStates[listing.address_hash] : null
 
             return {
               id: listing.id,
               address: address,
               price: convertToString(listing.price),
               beds: convertToString(listing.beds),
-              baths: convertToString(listing.baths || listing.bath), // Use 'baths' from CSV, fallback to 'bath'
+              baths: convertToString(listing.baths || listing.bath),
               square_feet: convertToString(listing.sqft),
               listing_link: listing.listing_url || listing.listing_link || '',
               property_type: 'Apartment',
@@ -89,6 +104,9 @@ export async function GET() {
               phone_numbers: listing.phone_numbers || null,
               emails: emails.length > 0 ? emails : null,
               phones: phones.length > 0 ? phones : null,
+              enrichment_status: state?.status || 'never_checked',
+              enrichment_locked: state?.locked || false,
+              address_hash: listing.address_hash || null,
               title: listing.title || null,
               full_address: listing.full_address || null,
               created_at: listing.created_at || null
