@@ -32,6 +32,7 @@ export default function EnrichmentLogPage() {
     const [stats, setStats] = useState<{ pending: number, enriched: number, no_data: number, smart_skipped: number, api_calls: number, is_running: boolean } | null>(null)
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
     const [isTriggering, setIsTriggering] = useState(false)
+    const [prioritizeTrulia, setPrioritizeTrulia] = useState(false)
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -102,9 +103,8 @@ export default function EnrichmentLogPage() {
 
         const interval = setInterval(() => {
             fetchStats()
-            if (stats?.is_running) {
-                refreshData()
-            }
+            // Always refresh history every 10 seconds to catch any updates
+            refreshData()
         }, 10000)
 
         return () => clearInterval(interval)
@@ -135,13 +135,20 @@ export default function EnrichmentLogPage() {
         try {
             setIsTriggering(true)
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
-            const res = await fetch(`${backendUrl}/api/trigger-enrichment?limit=50`, {
+            const url = new URL(`${backendUrl}/api/trigger-enrichment`)
+            url.searchParams.append('limit', '50')
+            if (prioritizeTrulia) {
+                url.searchParams.append('source', 'trulia')
+            }
+
+            const res = await fetch(url.toString(), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' }
             })
             const data = await res.json()
             if (res.ok) {
-                alert("✅ Started enrichment for 50 listings. Data will appear here automatically every 10 seconds.")
+                const priorityMsg = prioritizeTrulia ? " (Prioritizing Trulia)" : ""
+                alert(`✅ Started enrichment for 50 listings${priorityMsg}. Data will appear here automatically.`)
             } else {
                 alert(`❌ Error: ${data.error}`)
             }
@@ -192,6 +199,18 @@ export default function EnrichmentLogPage() {
                                 </>
                             )}
                         </button>
+                        <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
+                            <input
+                                type="checkbox"
+                                id="priority-trulia"
+                                checked={prioritizeTrulia}
+                                onChange={(e) => setPrioritizeTrulia(e.target.checked)}
+                                className="w-4 h-4 text-blue-600 rounded cursor-pointer"
+                            />
+                            <label htmlFor="priority-trulia" className="text-gray-700 cursor-pointer select-none">
+                                Prioritize Trulia
+                            </label>
+                        </div>
                         <button
                             onClick={refreshData}
                             className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-medium transition-colors"
