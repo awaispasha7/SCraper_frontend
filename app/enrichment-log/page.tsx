@@ -29,6 +29,8 @@ export default function EnrichmentLogPage() {
     const [loading, setLoading] = useState(true)
     const [history, setHistory] = useState<EnrichmentAttempt[]>([])
     const [error, setError] = useState<string | null>(null)
+    const [stats, setStats] = useState<{ pending: number, enriched: number, no_data: number, smart_skipped: number, api_calls: number, is_running: boolean } | null>(null)
+    const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -62,6 +64,50 @@ export default function EnrichmentLogPage() {
 
         fetchHistory()
     }, [isAuthenticated])
+
+    // Fetch stats from backend
+    const fetchStats = async () => {
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+            const res = await fetch(`${backendUrl}/api/enrichment-stats`)
+            if (res.ok) {
+                const data = await res.json()
+                setStats(data)
+            }
+        } catch (e) {
+            console.error('Failed to fetch stats:', e)
+        }
+    }
+
+    // Refetch history
+    const refreshData = async () => {
+        try {
+            const res = await fetch('/api/enrichment-history')
+            if (res.ok) {
+                const data = await res.json()
+                setHistory(data.history || [])
+                setLastRefresh(new Date())
+            }
+        } catch (e) {
+            console.error('Refresh failed:', e)
+        }
+        fetchStats()
+    }
+
+    // Auto-refresh every 10 seconds when enrichment is running
+    useEffect(() => {
+        if (!isAuthenticated) return
+        fetchStats()
+
+        const interval = setInterval(() => {
+            fetchStats()
+            if (stats?.is_running) {
+                refreshData()
+            }
+        }, 10000)
+
+        return () => clearInterval(interval)
+    }, [isAuthenticated, stats?.is_running])
 
     const triggerEnrichment = async () => {
         if (!confirm("Are you sure you want to trigger enrichment for the next 50 listings? This will incur costs.")) return
@@ -112,7 +158,20 @@ export default function EnrichmentLogPage() {
                         >
                             <span>▶️</span> Run Enrichment (50)
                         </button>
-                        <span>Showing last 50 attempts</span>
+                        <button
+                            onClick={refreshData}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-medium transition-colors"
+                        >
+                            🔄 Refresh
+                        </button>
+                        {stats && (
+                            <div className="flex gap-3 text-xs">
+                                <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Pending: {stats.pending}</span>
+                                <span className="bg-green-100 text-green-800 px-2 py-1 rounded">Enriched: {stats.enriched}</span>
+                                <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">Skipped: {stats.smart_skipped}</span>
+                                <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded">API Calls: {stats.api_calls}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
             </nav>
