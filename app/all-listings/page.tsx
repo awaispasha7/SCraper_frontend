@@ -192,8 +192,8 @@ function AllListingsPageContent() {
             zip: listing.zip_code || listing.zip || '',
             owner_name: listing.owner_name || null,
             mailing_address: null,
-            emails: listing.emails || null,
-            phones: listing.phones || null,
+            emails: listing.emails || listing.owner_email || null,
+            phones: listing.phones || listing.phone_numbers || null,
             description: listing.description || null,
             neighborhood: listing.neighborhood || null,
             source: 'apartments'
@@ -216,7 +216,7 @@ function AllListingsPageContent() {
             owner_name: listing.owner_name || null,
             mailing_address: listing.mailing_address || null,
             emails: listing.emails || null,
-            phones: listing.phones || null,
+            phones: listing.phones || listing.phone_number || null,
             source: 'zillow-fsbo'
           })
         })
@@ -756,7 +756,11 @@ function AllListingsPageContent() {
       (listing.time_of_post && listing.time_of_post.toLowerCase().includes(query)) ||
       (listing.scrape_date && listing.scrape_date.toLowerCase().includes(query)) ||
       (listing.source && listing.source.toLowerCase().includes(query)) ||
-      (listing.listing_link && listing.listing_link.toLowerCase().includes(query))
+      (listing.listing_link && listing.listing_link.toLowerCase().includes(query)) ||
+      // Owner information
+      (listing.mailing_address && listing.mailing_address.toLowerCase().includes(query)) ||
+      (listing.emails && toSearchableString(listing.emails).includes(query)) ||
+      (listing.phones && toSearchableString(listing.phones).includes(query))
     )
   })
 

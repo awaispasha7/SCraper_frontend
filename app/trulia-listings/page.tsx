@@ -21,8 +21,8 @@ interface TruliaListing {
   description: string
   owner_name?: string | null
   mailing_address?: string | null
-  emails?: string | null
-  phones?: string | null
+  emails?: string | string[] | null
+  phones?: string | string[] | null
   is_active_for_sale: boolean
   is_off_market: boolean
   is_recently_sold: boolean
@@ -88,14 +88,108 @@ function TruliaListingsPageContent() {
   }
 
   const handleDownload = (listing: TruliaListing) => {
-    // Escape CSV values properly for Excel compatibility
-    const escapeCSV = (value: string | number | null | undefined): string => {
-      // Handle null, undefined, or empty values
-      if (value === null || value === undefined || value === '' || value === 'null' || value === 'No email addresses found' || value === 'no email found' || value === 'no data') {
-        return ''
+    // Helper to normalize array data (handles arrays, JSON strings, or single values)
+    const normalizeArrayData = (value: any): string[] => {
+      if (!value || value === 'null' || value === 'None' || value === '') return []
+
+      // Handle arrays
+      if (Array.isArray(value)) {
+        // Flatten nested arrays and filter out empty values
+        const flattened: string[] = []
+        const flatten = (arr: any[]): void => {
+          for (const item of arr) {
+            if (Array.isArray(item)) {
+              flatten(item)
+            } else if (item !== null && item !== undefined) {
+              // Convert to string - handle numbers properly (prevent scientific notation)
+              let str = ''
+              if (typeof item === 'number') {
+                // For phone numbers stored as numbers, convert to string without scientific notation
+                // Check if it's a large integer (likely a phone number)
+                if (Number.isInteger(item) && item > 0) {
+                  // Convert large integers to string without scientific notation
+                  // Use BigInt for very large numbers to prevent precision loss
+                  if (item > Number.MAX_SAFE_INTEGER) {
+                    str = BigInt(item).toString()
+                  } else {
+                    // For regular integers, convert directly - no scientific notation
+                    str = item.toString()
+                  }
+                } else {
+                  str = String(item)
+                }
+              } else {
+                str = String(item)
+              }
+              const trimmed = str.trim()
+              if (trimmed && trimmed !== '' && trimmed !== 'null' && trimmed !== 'None') {
+                flattened.push(trimmed)
+              }
+            }
+          }
+        }
+        flatten(value)
+        return flattened
       }
+
+      // Handle strings
+      if (typeof value === 'string') {
+        const trimmed = value.trim()
+        if (!trimmed) return []
+
+        // Try to parse as JSON first
+        try {
+          const parsed = JSON.parse(trimmed)
+          if (Array.isArray(parsed)) {
+            return normalizeArrayData(parsed) // Recursively handle nested arrays
+          }
+          // If parsed to a single value, return as array
+          return [String(parsed).trim()].filter(v => v)
+        } catch (e) {
+          // Not JSON, check if it's comma-separated
+          if (trimmed.includes(',')) {
+            return trimmed.split(',').map(v => v.trim()).filter(v => v)
+          }
+          // Single string value
+          return [trimmed]
+        }
+      }
+
+      // Handle numbers or other types - convert to string array
+      const str = String(value).trim()
+      return str ? [str] : []
+    }
+
+    // Escape CSV values properly for Excel compatibility
+    // CRITICAL: Always quote arrays and values with commas to prevent column misalignment
+    const escapeCSV = (value: string | string[] | number | null | undefined, isArrayField: boolean = false): string => {
+      // Handle null, undefined, or empty values
+      if (value === null || value === undefined || value === '' || value === 'null' || value === 'None' || value === 'No email addresses found' || value === 'no email found' || value === 'no data') {
+        return '' // Return empty string
+      }
+
+      // For array fields (emails/phones), normalize and ALWAYS quote
+      if (isArrayField) {
+        const normalized = normalizeArrayData(value)
+        if (normalized.length === 0) return ''
+        // Join with comma separator (,) - user requested comma separation
+        // CRITICAL: Must quote the entire result so Excel treats commas as part of the value, not column separators
+        const joined = normalized.join(',')
+        // Convert to string and handle special characters
+        let str = String(joined).trim().replace(/\n/g, ' ').replace(/\r/g, '')
+        if (!str) return ''
+        // ALWAYS quote array values to prevent Excel from splitting on commas
+        // Add a leading tab character to force Excel to treat the cell as text
+        // This prevents Excel from trying to calculate or parse numbers (especially phone numbers)
+        // The tab character is invisible but forces text mode in Excel
+        str = '\t' + str
+        return `"${str.replace(/"/g, '""')}"`
+      }
+
+      // Handle strings
       const str = String(value).trim()
       if (!str || str === '') return ''
+
       // If value contains comma, quote, or newline, wrap in quotes and escape quotes
       if (str.includes(',') || str.includes('"') || str.includes('\n')) {
         return `"${str.replace(/"/g, '""')}"`
@@ -104,27 +198,25 @@ function TruliaListingsPageContent() {
     }
 
     // Prepare CSV data with all Supabase fields for Trulia
-    const csvData = [
-      // Header row
-      ['address', 'price', 'beds', 'baths', 'square_feet', 'listing_link', 'property_type', 'lot_size', 'description', 'owner_name', 'mailing_address', 'emails', 'phones', 'scrape_date'].join(','),
-      // Data row
-      [
-        escapeCSV(listing.address),
-        escapeCSV(listing.price),
-        escapeCSV(listing.beds),
-        escapeCSV(listing.baths),
-        escapeCSV(listing.square_feet),
-        escapeCSV(listing.listing_link),
-        escapeCSV(listing.property_type),
-        escapeCSV(listing.lot_size),
-        escapeCSV(listing.description),
-        escapeCSV(listing.owner_name),
-        escapeCSV(listing.mailing_address),
-        escapeCSV(listing.emails),
-        escapeCSV(listing.phones),
-        escapeCSV(data?.scrape_date || '')
-      ].join(',')
-    ].join('\n')
+    const headers = ['address', 'price', 'beds', 'baths', 'square_feet', 'listing_link', 'property_type', 'lot_size', 'description', 'owner_name', 'mailing_address', 'emails', 'phones', 'scrape_date']
+    const rowData = [
+      escapeCSV(listing.address),
+      escapeCSV(listing.price),
+      escapeCSV(listing.beds),
+      escapeCSV(listing.baths),
+      escapeCSV(listing.square_feet),
+      escapeCSV(listing.listing_link),
+      escapeCSV(listing.property_type),
+      escapeCSV(listing.lot_size),
+      escapeCSV(listing.description),
+      escapeCSV(listing.owner_name),
+      escapeCSV(listing.mailing_address),
+      escapeCSV(listing.emails, true), // Mark as array field
+      escapeCSV(listing.phones, true), // Mark as array field
+      escapeCSV(data?.scrape_date || '')
+    ]
+
+    const csvData = [headers.join(','), rowData.join(',')].join('\n')
 
     // Create blob with UTF-8 BOM for Excel compatibility
     const BOM = '\uFEFF'
