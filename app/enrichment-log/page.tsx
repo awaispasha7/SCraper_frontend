@@ -20,6 +20,7 @@ interface EnrichmentAttempt {
     checked_at: string
     failure_reason: string | null
     listing_source: string | null
+    source_used: string | null
     owner_info: OwnerInfo | null
 }
 
@@ -33,6 +34,7 @@ export default function EnrichmentLogPage() {
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
     const [isTriggering, setIsTriggering] = useState(false)
     const [prioritizeTrulia, setPrioritizeTrulia] = useState(false)
+    const [activeTab, setActiveTab] = useState<'all' | 'enriched' | 'no_data' | 'skipped'>('all')
 
     useEffect(() => {
         const checkAuth = async () => {
@@ -124,9 +126,32 @@ export default function EnrichmentLogPage() {
             'apartments': '/apartments',
             'apartments.com': '/apartments',
             'trulia': '/trulia',
-            'redfin': '/redfin'
+            'trulia-listings': '/trulia-listings',
+            'redfin': '/redfin-listings',
+            'redfin-listings': '/redfin-listings'
         }
         return sourceMap[source.toLowerCase()] || '/all-listings'
+    }
+
+    const filteredHistory = history.filter(item => {
+        if (activeTab === 'all') return true
+        if (activeTab === 'enriched') return item.status === 'enriched' && item.source_used === 'batchdata'
+        if (activeTab === 'no_data') return item.status === 'no_owner_data'
+        if (activeTab === 'skipped') return item.status === 'enriched' && item.source_used === 'scraped'
+        return true
+    })
+
+    const formatESTTime = (dateStr: string) => {
+        return new Intl.DateTimeFormat('en-US', {
+            timeZone: 'America/New_York',
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: true
+        }).format(new Date(dateStr))
     }
 
     const triggerEnrichment = async () => {
@@ -230,16 +255,44 @@ export default function EnrichmentLogPage() {
             </nav>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                <div className="flex justify-between items-center mb-6">
-                    <p className="text-gray-500 text-sm">
-                        💡 Tip: Click on an address or source to view the listing in its dashboard.
-                    </p>
-                    {stats?.is_running && (
-                        <p className="text-blue-600 text-sm font-medium animate-pulse flex items-center gap-2">
-                            <span className="h-2 w-2 bg-blue-600 rounded-full"></span>
-                            Refreshes automatically every 10 seconds
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-6">
+                    <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200">
+                        <button
+                            onClick={() => setActiveTab('all')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'all' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                            All ({history.length})
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('enriched')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'enriched' ? 'bg-green-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                            Enriched ({history.filter(i => i.status === 'enriched' && i.source_used === 'batchdata').length})
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('no_data')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'no_data' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                            No Data ({history.filter(i => i.status === 'no_owner_data').length})
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('skipped')}
+                            className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'skipped' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
+                        >
+                            Skipped ({history.filter(i => i.status === 'enriched' && i.source_used === 'scraped').length})
+                        </button>
+                    </div>
+                    <div className="flex items-center gap-4">
+                        <p className="text-gray-500 text-sm">
+                            💡 Tip: Click on an address to view it in the dashboard.
                         </p>
-                    )}
+                        {stats?.is_running && (
+                            <p className="text-blue-600 text-sm font-medium animate-pulse flex items-center gap-2">
+                                <span className="h-2 w-2 bg-blue-600 rounded-full"></span>
+                                Live Updates
+                            </p>
+                        )}
+                    </div>
                 </div>
 
                 <div className="bg-white shadow-xl rounded-2xl overflow-hidden border border-gray-200">
@@ -262,14 +315,14 @@ export default function EnrichmentLogPage() {
                                         </td>
                                     </tr>
                                 ) : (
-                                    history.map((item, idx) => (
+                                    filteredHistory.map((item, idx) => (
                                         <tr key={idx} className="hover:bg-gray-50 transition-colors">
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                                                {new Date(item.checked_at).toLocaleString()}
+                                                {formatESTTime(item.checked_at)}
                                             </td>
                                             <td className="px-6 py-4 text-sm font-medium text-gray-900 max-w-xs">
                                                 <Link
-                                                    href={`${getSourceRoute(item.listing_source)}?search=${encodeURIComponent(item.normalized_address.split(' ').slice(0, 3).join(' '))}`}
+                                                    href={`${getSourceRoute(item.listing_source)}?search=${encodeURIComponent(item.normalized_address)}`}
                                                     className="truncate block text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                                                     title={`View in ${item.listing_source || 'All Listings'}`}
                                                 >

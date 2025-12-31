@@ -67,8 +67,61 @@ function AllListingsPageContent() {
   }
 
   useEffect(() => {
+    // Disable automatic scroll restoration
+    if (typeof window !== 'undefined') {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual'
+      }
+    }
+
+    const returningFromOwnerInfo = typeof window !== 'undefined' &&
+      (sessionStorage.getItem('returningFromOwnerInfo') || sessionStorage.getItem('preventScrollRestore'))
+
+    // If we have cached listings and are returning, don't fetch again immediately
+    const cachedData = typeof window !== 'undefined' ? sessionStorage.getItem('allListingsData') : null
+    if (returningFromOwnerInfo && cachedData) {
+      try {
+        setAllListings(JSON.parse(cachedData))
+        setLoading(false)
+        return
+      } catch (e) {
+        // Fallback to fetch
+      }
+    }
+
     fetchAllListings()
   }, [])
+
+  // Restore scroll position after data loads
+  useEffect(() => {
+    if (allListings.length === 0) return
+
+    if (typeof window !== 'undefined') {
+      const savedScrollPosition = sessionStorage.getItem('listingScrollPosition')
+      const returningFromOwnerInfo = sessionStorage.getItem('returningFromOwnerInfo')
+      const preventScrollRestore = sessionStorage.getItem('preventScrollRestore')
+      const sourcePage = sessionStorage.getItem('sourcePage')
+
+      if (savedScrollPosition && (returningFromOwnerInfo || preventScrollRestore) && sourcePage === 'all-listings') {
+        const scrollPos = parseInt(savedScrollPosition, 10)
+        const restoreScroll = () => {
+          window.scrollTo({ top: scrollPos, behavior: 'auto' })
+        }
+        setTimeout(restoreScroll, 50)
+        setTimeout(restoreScroll, 100)
+        setTimeout(restoreScroll, 200)
+        setTimeout(restoreScroll, 500)
+
+        setTimeout(() => {
+          sessionStorage.removeItem('returningFromOwnerInfo')
+          sessionStorage.removeItem('preventScrollRestore')
+          sessionStorage.removeItem('listingScrollPosition')
+          sessionStorage.removeItem('sourcePage')
+          sessionStorage.removeItem('listingAddress')
+        }, 600)
+      }
+    }
+  }, [allListings])
 
   // Handle deep-linking from enrichment log
   useEffect(() => {
@@ -265,6 +318,10 @@ function AllListingsPageContent() {
       }
 
       setAllListings(unifiedListings)
+
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('allListingsData', JSON.stringify(unifiedListings))
+      }
     } catch (err: any) {
       console.error('Error fetching all listings:', err)
       setError(err.message || 'Failed to load listings. Please try again.')

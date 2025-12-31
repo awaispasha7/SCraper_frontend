@@ -20,7 +20,8 @@ export async function GET() {
         status,
         checked_at,
         failure_reason,
-        listing_source
+        listing_source,
+        source_used
       `)
             .not('checked_at', 'is', null)
             .order('checked_at', { ascending: false })
