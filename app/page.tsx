@@ -216,7 +216,7 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [isAuthenticated, runningAll]) // Depend on runningAll to detect transitions
 
-  // Fetch total listings count
+  // Fetch total listings count and last scrape time
   useEffect(() => {
     if (!isAuthenticated) return
 
@@ -224,7 +224,28 @@ export default function HomePage() {
       try {
         setLoading(true)
 
-        // Fetch from all APIs in parallel
+        // Fetch last scrape time from backend status
+        try {
+          const statusRes = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+          if (statusRes.ok) {
+            const statusData = await statusRes.json()
+            const finishedAt = statusData.all_scrapers?.finished_at
+            if (finishedAt) {
+              const scrapeDate = new Date(finishedAt)
+              setLastScrapeTime(scrapeDate.toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }))
+            }
+          }
+        } catch (err) {
+          console.error('Error fetching last scrape time:', err)
+        }
+
+        // Fetch from all APIs in parallel for total count
         const [fsboRes, truliaRes, redfinRes, apartmentsRes, zillowFsboRes, zillowFrboRes, hotpadsRes] = await Promise.all([
           fetch('/api/listings?' + Date.now(), { cache: 'no-store' }).catch(() => null),
           fetch('/api/trulia-listings?' + Date.now(), { cache: 'no-store' }).catch(() => null),
@@ -236,17 +257,15 @@ export default function HomePage() {
         ])
 
         let total = 0
-        let latestScrape: Date | null = null
 
         const parseResponse = async (res: Response | null) => {
-          if (!res || !res.ok) return { count: 0, timestamp: null }
+          if (!res || !res.ok) return { count: 0 }
           try {
             const data = await res.json()
             const count = data.total_listings || data.listings?.length || 0
-            const timestamp = data.scrape_timestamp || data.scrape_date || null
-            return { count, timestamp }
+            return { count }
           } catch {
-            return { count: 0, timestamp: null }
+            return { count: 0 }
           }
         }
 
@@ -260,27 +279,11 @@ export default function HomePage() {
           parseResponse(hotpadsRes)
         ])
 
-        results.forEach(({ count, timestamp }) => {
+        results.forEach(({ count }) => {
           total += count
-          if (timestamp) {
-            const date = new Date(timestamp)
-            if (!latestScrape || date > latestScrape) {
-              latestScrape = date
-            }
-          }
         })
 
         setTotalListings(total)
-        if (latestScrape) {
-          const scrapeDate = latestScrape as Date
-          setLastScrapeTime(scrapeDate.toLocaleString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-          }))
-        }
       } catch (err) {
         console.error('Error fetching stats:', err)
       } finally {

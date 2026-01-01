@@ -28,16 +28,31 @@ export async function GET() {
           // Get all address_hashes for batch lookup
           const addressHashes = listings.map((l: any) => l.address_hash).filter(Boolean)
 
-          // Fetch enrichment states for these hashes
+          // Fetch enrichment states AND owner details for these hashes
           let enrichmentStates: Record<string, any> = {}
-          if (addressHashes.length > 0) {
-            const { data: stateData } = await dbClient
-              .from('property_owner_enrichment_state')
-              .select('address_hash, status, locked')
-              .in('address_hash', addressHashes)
+          let ownerDetails: Record<string, any> = {}
 
-            if (stateData) {
-              enrichmentStates = stateData.reduce((acc: any, item: any) => {
+          if (addressHashes.length > 0) {
+            const [stateRes, ownerRes] = await Promise.all([
+              dbClient
+                .from('property_owner_enrichment_state')
+                .select('address_hash, status, locked')
+                .in('address_hash', addressHashes),
+              dbClient
+                .from('property_owners')
+                .select('address_hash, owner_name, owner_email, owner_phone, mailing_address, source')
+                .in('address_hash', addressHashes)
+            ])
+
+            if (stateRes.data) {
+              enrichmentStates = stateRes.data.reduce((acc: any, item: any) => {
+                acc[item.address_hash] = item
+                return acc
+              }, {})
+            }
+
+            if (ownerRes.data) {
+              ownerDetails = ownerRes.data.reduce((acc: any, item: any) => {
                 acc[item.address_hash] = item
                 return acc
               }, {})
@@ -81,8 +96,17 @@ export async function GET() {
               }
             }
 
-            // Get enrichment state using address_hash
+            // Get enrichment state and owner data using address_hash
             const state = listing.address_hash ? enrichmentStates[listing.address_hash] : null
+            const owner = listing.address_hash ? ownerDetails[listing.address_hash] : null
+
+            // Smart status determination: if owner data exists, status is "enriched"
+            const hasOwnerData = owner?.owner_name || owner?.owner_email || owner?.owner_phone
+            const enrichmentStatus = hasOwnerData ? 'enriched' : (state?.status || 'never_checked')
+
+            // Merge owner data from property_owners table
+            if (owner?.owner_email && !emails.includes(owner.owner_email)) emails.push(owner.owner_email)
+            if (owner?.owner_phone && !phones.includes(owner.owner_phone)) phones.push(owner.owner_phone)
 
             return {
               id: listing.id,
@@ -99,13 +123,15 @@ export async function GET() {
               state: listing.state || null,
               zip_code: listing.zip_code || null,
               street: listing.street || null,
-              owner_name: listing.owner_name || null,
+              owner_name: owner?.owner_name || listing.owner_name || null,
               owner_email: listing.owner_email || null,
+              mailing_address: owner?.mailing_address || null,
               phone_numbers: listing.phone_numbers || null,
               emails: emails.length > 0 ? emails : null,
               phones: phones.length > 0 ? phones : null,
-              enrichment_status: state?.status || 'never_checked',
+              enrichment_status: enrichmentStatus,
               enrichment_locked: state?.locked || false,
+              enrichment_source: owner?.source || null,
               address_hash: listing.address_hash || null,
               title: listing.title || null,
               full_address: listing.full_address || null,
