@@ -23,38 +23,49 @@ export async function GET() {
         if (!error && listings && listings.length > 0) {
           console.log(`✅ Found ${listings.length} Trulia listings in Supabase`)
 
-          // Get all address_hashes for batch lookup
-          const addressHashes = listings.map((l: any) => l.address_hash).filter(Boolean)
+          // Get unique address_hashes for batch lookup (de-duplicated to reduce parameters)
+          const uniqueHashes = Array.from(new Set(listings.map((l: any) => l.address_hash).filter(Boolean))) as string[]
 
           // Fetch enrichment states AND owner details for these hashes
           let enrichmentStates: Record<string, any> = {}
           let ownerDetails: Record<string, any> = {}
 
-          if (addressHashes.length > 0) {
-            const [stateRes, ownerRes] = await Promise.all([
-              dbClient
-                .from('property_owner_enrichment_state')
-                .select('address_hash, status, locked')
-                .in('address_hash', addressHashes),
-              dbClient
-                .from('property_owners')
-                .select('address_hash, owner_name, owner_email, owner_phone, mailing_address, source')
-                .in('address_hash', addressHashes)
-            ])
+          if (uniqueHashes.length > 0) {
+            // Function to fetch in chunks to avoid Supabase URL/parameter limits
+            const CHUNK_SIZE = 200
+            const stateResults: any[] = []
+            const ownerResults: any[] = []
 
-            if (stateRes.data) {
-              enrichmentStates = stateRes.data.reduce((acc: any, item: any) => {
-                acc[item.address_hash] = item
-                return acc
-              }, {})
+            for (let i = 0; i < uniqueHashes.length; i += CHUNK_SIZE) {
+              const chunk = uniqueHashes.slice(i, i + CHUNK_SIZE)
+              const [stateRes, ownerRes] = await Promise.all([
+                dbClient
+                  .from('property_owner_enrichment_state')
+                  .select('address_hash, status, locked')
+                  .in('address_hash', chunk),
+                dbClient
+                  .from('property_owners')
+                  .select('address_hash, owner_name, owner_email, owner_phone, mailing_address, source')
+                  .in('address_hash', chunk)
+              ])
+
+              if (stateRes.data) stateResults.push(...stateRes.data)
+              if (ownerRes.data) ownerResults.push(...ownerRes.data)
+
+              if (stateRes.error) console.error(`❌ Error fetching state chunk [${i}]:`, stateRes.error)
+              if (ownerRes.error) console.error(`❌ Error fetching owner chunk [${i}]:`, ownerRes.error)
             }
 
-            if (ownerRes.data) {
-              ownerDetails = ownerRes.data.reduce((acc: any, item: any) => {
-                acc[item.address_hash] = item
-                return acc
-              }, {})
-            }
+            // Map results to records for easy lookup
+            enrichmentStates = stateResults.reduce((acc: any, item: any) => {
+              acc[item.address_hash] = item
+              return acc
+            }, {})
+
+            ownerDetails = ownerResults.reduce((acc: any, item: any) => {
+              acc[item.address_hash] = item
+              return acc
+            }, {})
           }
 
           // Transform Supabase data to match frontend format - optimized
