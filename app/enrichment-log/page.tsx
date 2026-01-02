@@ -203,6 +203,12 @@ export default function EnrichmentLogPage() {
                         <Link href="/" className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2">
                             <span>←</span> Back to Dashboard
                         </Link>
+                        <Link 
+                            href="/owner-info" 
+                            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
+                        >
+                            <span>👤</span> Owner Info
+                        </Link>
                         <h1 className="text-xl font-bold text-gray-900 border-l border-gray-200 pl-4">
                             Enrichment Activity Log
                         </h1>
@@ -321,27 +327,42 @@ export default function EnrichmentLogPage() {
                                                 {formatESTTime(item.checked_at)}
                                             </td>
                                             <td className="px-6 py-4 text-sm font-medium text-gray-900 max-w-xs">
-                                                <Link
-                                                    href={`${getSourceRoute(item.listing_source)}?search=${encodeURIComponent(item.normalized_address)}`}
-                                                    className="truncate block text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
-                                                    title={`View in ${item.listing_source || 'All Listings'}`}
-                                                >
+                                                <span className="truncate block" title={item.normalized_address}>
                                                     {item.normalized_address}
-                                                </Link>
+                                                </span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap">
                                                 <StatusBadge status={item.status} reason={item.failure_reason} />
                                             </td>
                                             <td className="px-6 py-4 text-sm">
-                                                {item.owner_info ? (
+                                                {item.owner_info && (item.owner_info.owner_name || item.owner_info.owner_email || item.owner_info.owner_phone || item.owner_info.mailing_address) ? (
                                                     <div className="space-y-1">
                                                         {item.owner_info.owner_name && (
                                                             <div className="font-bold text-gray-900">{item.owner_info.owner_name}</div>
+                                                        )}
+                                                        {item.owner_info.mailing_address && (
+                                                            <div className="text-gray-600 text-xs">📍 {item.owner_info.mailing_address}</div>
                                                         )}
                                                         <div className="text-gray-500 text-xs">
                                                             {item.owner_info.owner_email && <div>✉️ {item.owner_info.owner_email}</div>}
                                                             {item.owner_info.owner_phone && <div>📞 {item.owner_info.owner_phone}</div>}
                                                         </div>
+                                                        <Link
+                                                            href={`/owner-info?address=${encodeURIComponent(item.normalized_address)}`}
+                                                            className="text-blue-600 hover:text-blue-800 text-xs underline mt-1 inline-block"
+                                                        >
+                                                            View Full Details →
+                                                        </Link>
+                                                    </div>
+                                                ) : item.status === 'enriched' ? (
+                                                    <div className="space-y-1">
+                                                        <span className="text-gray-400 italic text-xs">No owner data found</span>
+                                                        <Link
+                                                            href={`/owner-info?address=${encodeURIComponent(item.normalized_address)}`}
+                                                            className="text-blue-600 hover:text-blue-800 text-xs underline mt-1 inline-block"
+                                                        >
+                                                            Check Owner Info →
+                                                        </Link>
                                                     </div>
                                                 ) : (
                                                     <span className="text-gray-400 italic">No details</span>
