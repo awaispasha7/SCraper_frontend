@@ -122,7 +122,7 @@ export default function EnrichmentLogPage() {
             'hotpads': '/hotpads',
             'apartments': '/apartments',
             'apartments.com': '/apartments',
-            'trulia': '/trulia',
+            'trulia': '/trulia-listings',
             'trulia-listings': '/trulia-listings',
             'redfin': '/redfin-listings',
             'redfin-listings': '/redfin-listings'
