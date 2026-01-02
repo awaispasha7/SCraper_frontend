@@ -11,7 +11,8 @@ export async function GET() {
             return NextResponse.json({ error: 'Database not configured' }, { status: 500 })
         }
 
-        // Fetch ALL enrichment attempts (up to 500) sorted by most recent
+        // Fetch enrichment attempts (up to 5000) sorted by most recent
+        // Increased limit to show more records and make tab counts closer to stats box
         const { data: attempts, error } = await dbClient
             .from('property_owner_enrichment_state')
             .select(`
@@ -25,7 +26,7 @@ export async function GET() {
       `)
             .not('checked_at', 'is', null)
             .order('checked_at', { ascending: false })
-            .limit(500)
+            .limit(5000)
 
         if (error) {
             console.error('Error fetching enrichment history:', error)

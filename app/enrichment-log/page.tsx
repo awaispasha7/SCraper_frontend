@@ -30,7 +30,7 @@ export default function EnrichmentLogPage() {
     const [loading, setLoading] = useState(true)
     const [history, setHistory] = useState<EnrichmentAttempt[]>([])
     const [error, setError] = useState<string | null>(null)
-    const [stats, setStats] = useState<{ pending: number, enriched: number, no_data: number, smart_skipped: number, api_calls: number, is_running: boolean } | null>(null)
+    const [stats, setStats] = useState<{ pending: number, enriched: number, enriched_owners: number, no_data: number, smart_skipped: number, api_calls: number, is_running: boolean } | null>(null)
     const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
     const [isTriggering, setIsTriggering] = useState(false)
     const [prioritizeTrulia, setPrioritizeTrulia] = useState(false)
@@ -135,7 +135,7 @@ export default function EnrichmentLogPage() {
 
     const filteredHistory = history.filter(item => {
         if (activeTab === 'all') return true
-        if (activeTab === 'enriched') return item.status === 'enriched' && item.source_used === 'batchdata'
+        if (activeTab === 'enriched') return item.status === 'enriched'  // Show ALL enriched, not just batchdata
         if (activeTab === 'no_data') return item.status === 'no_owner_data'
         if (activeTab === 'skipped') return item.status === 'enriched' && item.source_used === 'scraped'
         return true
@@ -245,7 +245,7 @@ export default function EnrichmentLogPage() {
                         {stats && (
                             <div className="flex gap-3 text-xs">
                                 <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded">Pending: {stats.pending}</span>
-                                <span className="bg-green-100 text-green-800 px-2 py-1 rounded">Enriched: {stats.enriched}</span>
+                                <span className="bg-green-100 text-green-800 px-2 py-1 rounded" title="From property_owners table (actual addresses with owner data)">Enriched: {stats.enriched_owners || stats.enriched}</span>
                                 <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded">Skipped: {stats.smart_skipped}</span>
                                 <span className="bg-purple-100 text-purple-800 px-2 py-1 rounded">API Calls: {stats.api_calls}</span>
                             </div>
@@ -267,7 +267,7 @@ export default function EnrichmentLogPage() {
                             onClick={() => setActiveTab('enriched')}
                             className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'enriched' ? 'bg-green-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
                         >
-                            Enriched ({history.filter(i => i.status === 'enriched' && i.source_used === 'batchdata').length})
+                            Enriched ({history.filter(i => i.status === 'enriched').length})
                         </button>
                         <button
                             onClick={() => setActiveTab('no_data')}
