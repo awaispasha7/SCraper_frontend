@@ -267,19 +267,19 @@ export default function EnrichmentLogPage() {
                             onClick={() => setActiveTab('enriched')}
                             className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'enriched' ? 'bg-green-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
                         >
-                            Enriched ({history.filter(i => i.status === 'enriched').length})
+                            Enriched ({stats ? (stats.enriched_owners || stats.enriched) : history.filter(i => i.status === 'enriched').length})
                         </button>
                         <button
                             onClick={() => setActiveTab('no_data')}
                             className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'no_data' ? 'bg-amber-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
                         >
-                            No Data ({history.filter(i => i.status === 'no_owner_data').length})
+                            No Data ({stats ? stats.no_data : history.filter(i => i.status === 'no_owner_data').length})
                         </button>
                         <button
                             onClick={() => setActiveTab('skipped')}
                             className={`px-6 py-2 rounded-lg text-sm font-bold transition-all ${activeTab === 'skipped' ? 'bg-blue-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
                         >
-                            Skipped ({history.filter(i => i.status === 'enriched' && i.source_used === 'scraped').length})
+                            Skipped ({stats ? stats.smart_skipped : history.filter(i => i.status === 'enriched' && i.source_used === 'scraped').length})
                         </button>
                     </div>
                     <div className="flex items-center gap-4">
