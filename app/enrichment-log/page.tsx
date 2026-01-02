@@ -31,9 +31,7 @@ export default function EnrichmentLogPage() {
     const [history, setHistory] = useState<EnrichmentAttempt[]>([])
     const [error, setError] = useState<string | null>(null)
     const [stats, setStats] = useState<{ pending: number, enriched: number, enriched_owners: number, no_data: number, smart_skipped: number, api_calls: number, is_running: boolean } | null>(null)
-    const [lastRefresh, setLastRefresh] = useState<Date>(new Date())
     const [isTriggering, setIsTriggering] = useState(false)
-    const [prioritizeTrulia, setPrioritizeTrulia] = useState(false)
     const [activeTab, setActiveTab] = useState<'all' | 'enriched' | 'no_data' | 'skipped'>('all')
 
     useEffect(() => {
@@ -48,6 +46,20 @@ export default function EnrichmentLogPage() {
         }
         checkAuth()
     }, [router])
+
+    // Fetch stats from backend
+    const fetchStats = async () => {
+        try {
+            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
+            const res = await fetch(`${backendUrl}/api/enrichment-stats`)
+            if (res.ok) {
+                const data = await res.json()
+                setStats(data)
+            }
+        } catch (e) {
+            console.error('Failed to fetch stats:', e)
+        }
+    }
 
     useEffect(() => {
         if (!isAuthenticated) return
@@ -66,42 +78,27 @@ export default function EnrichmentLogPage() {
             }
         }
 
+        // Fetch both history and stats on page load/reload
         fetchHistory()
-    }, [isAuthenticated])
-
-    // Fetch stats from backend
-    const fetchStats = async () => {
-        try {
-            const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
-            const res = await fetch(`${backendUrl}/api/enrichment-stats`)
-            if (res.ok) {
-                const data = await res.json()
-                setStats(data)
-            }
-        } catch (e) {
-            console.error('Failed to fetch stats:', e)
-        }
-    }
-
-    // Refetch history
-    const refreshData = async () => {
-        try {
-            const res = await fetch('/api/enrichment-history')
-            if (res.ok) {
-                const data = await res.json()
-                setHistory(data.history || [])
-                setLastRefresh(new Date())
-            }
-        } catch (e) {
-            console.error('Refresh failed:', e)
-        }
         fetchStats()
-    }
+    }, [isAuthenticated])
 
     // Auto-refresh every 10 seconds when enrichment is running
     useEffect(() => {
         if (!isAuthenticated) return
-        fetchStats()
+
+        const refreshData = async () => {
+            try {
+                const res = await fetch('/api/enrichment-history')
+                if (res.ok) {
+                    const data = await res.json()
+                    setHistory(data.history || [])
+                }
+            } catch (e) {
+                console.error('Refresh failed:', e)
+            }
+            fetchStats()
+        }
 
         const interval = setInterval(() => {
             fetchStats()
@@ -162,9 +159,6 @@ export default function EnrichmentLogPage() {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'
             const url = new URL(`${backendUrl}/api/trigger-enrichment`)
             url.searchParams.append('limit', '50')
-            if (prioritizeTrulia) {
-                url.searchParams.append('source', 'trulia')
-            }
 
             const res = await fetch(url.toString(), {
                 method: 'POST',
@@ -172,8 +166,7 @@ export default function EnrichmentLogPage() {
             })
             const data = await res.json()
             if (res.ok) {
-                const priorityMsg = prioritizeTrulia ? " (Prioritizing Trulia)" : ""
-                alert(`✅ Started enrichment for 50 listings${priorityMsg}. Data will appear here automatically.`)
+                alert(`✅ Started enrichment for 50 listings. Data will appear here automatically.`)
             } else {
                 alert(`❌ Error: ${data.error}`)
             }
@@ -203,12 +196,6 @@ export default function EnrichmentLogPage() {
                         <Link href="/" className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2">
                             <span>←</span> Back to Dashboard
                         </Link>
-                        <Link 
-                            href="/owner-info" 
-                            className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2"
-                        >
-                            <span>👤</span> Owner Info
-                        </Link>
                         <h1 className="text-xl font-bold text-gray-900 border-l border-gray-200 pl-4">
                             Enrichment Activity Log
                         </h1>
@@ -229,24 +216,6 @@ export default function EnrichmentLogPage() {
                                     <span>▶️</span> Run Enrichment (50)
                                 </>
                             )}
-                        </button>
-                        <div className="flex items-center gap-2 bg-gray-50 px-3 py-2 rounded-lg border border-gray-200">
-                            <input
-                                type="checkbox"
-                                id="priority-trulia"
-                                checked={prioritizeTrulia}
-                                onChange={(e) => setPrioritizeTrulia(e.target.checked)}
-                                className="w-4 h-4 text-blue-600 rounded cursor-pointer"
-                            />
-                            <label htmlFor="priority-trulia" className="text-gray-700 cursor-pointer select-none">
-                                Prioritize Trulia
-                            </label>
-                        </div>
-                        <button
-                            onClick={refreshData}
-                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-lg font-medium transition-colors"
-                        >
-                            🔄 Refresh
                         </button>
                         {stats && (
                             <div className="flex gap-3 text-xs">
@@ -355,15 +324,12 @@ export default function EnrichmentLogPage() {
                                                         </Link>
                                                     </div>
                                                 ) : item.status === 'enriched' ? (
-                                                    <div className="space-y-1">
-                                                        <span className="text-gray-400 italic text-xs">No owner data found</span>
-                                                        <Link
-                                                            href={`/owner-info?address=${encodeURIComponent(item.normalized_address)}`}
-                                                            className="text-blue-600 hover:text-blue-800 text-xs underline mt-1 inline-block"
-                                                        >
-                                                            Check Owner Info →
-                                                        </Link>
-                                                    </div>
+                                                    <Link
+                                                        href={`/owner-info?address=${encodeURIComponent(item.normalized_address)}`}
+                                                        className="text-blue-600 hover:text-blue-800 text-xs underline inline-block"
+                                                    >
+                                                        Check Owner Info →
+                                                    </Link>
                                                 ) : (
                                                     <span className="text-gray-400 italic">No details</span>
                                                 )}
