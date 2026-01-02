@@ -318,28 +318,28 @@ function OwnerInfoContent() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 -mt-6">
         <div className="bg-white rounded-2xl shadow-2xl overflow-hidden border border-gray-100">
           {/* Property Address Section */}
-          <div className="bg-gray-100 border-b border-gray-200 p-8">
-            <div className="flex items-center gap-3 mb-3">
-              <span className="text-3xl">📍</span>
-              <div className="text-sm font-semibold uppercase tracking-wide text-gray-600">Property Address</div>
+          <div className="bg-gray-100 border-b border-gray-200 p-4 sm:p-6 lg:p-8">
+            <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
+              <span className="text-2xl sm:text-3xl">📍</span>
+              <div className="text-xs sm:text-sm font-semibold uppercase tracking-wide text-gray-600">Property Address</div>
             </div>
-            <div className="text-3xl md:text-4xl font-bold leading-tight text-gray-900">
+            <div className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold leading-tight text-gray-900 break-words">
               {ownerInfo?.propertyAddress || 'Address Not Available'}
             </div>
           </div>
 
           {/* Owner Information Section */}
-          <div className="p-8">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 max-w-4xl mx-auto">
+          <div className="p-4 sm:p-6 lg:p-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6 max-w-4xl mx-auto">
               {/* Owner Name */}
-              <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
-                <div className="flex items-start gap-4">
-                  <div className="bg-gray-100 rounded-lg p-4 border border-gray-200">
-                    <span className="text-3xl">👤</span>
+              <div className="bg-white rounded-lg p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="bg-gray-100 rounded-lg p-3 sm:p-4 border border-gray-200 flex-shrink-0">
+                    <span className="text-2xl sm:text-3xl">👤</span>
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="text-gray-600 text-xs font-semibold uppercase tracking-wide mb-2">Owner Name</div>
-                    <div className="text-2xl font-bold text-gray-900 leading-tight">
+                    <div className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 leading-tight break-words">
                       {ownerInfo?.ownerName && ownerInfo.ownerName !== 'null' && ownerInfo.ownerName !== 'None'
                         ? ownerInfo.ownerName
                         : <span className="text-gray-400">Not Available</span>}
@@ -349,14 +349,14 @@ function OwnerInfoContent() {
               </div>
 
               {/* Mailing Address */}
-              <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
-                <div className="flex items-start gap-4">
-                  <div className="bg-gray-100 rounded-lg p-4 border border-gray-200">
-                    <span className="text-3xl">📮</span>
+              <div className="bg-white rounded-lg p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="bg-gray-100 rounded-lg p-3 sm:p-4 border border-gray-200 flex-shrink-0">
+                    <span className="text-2xl sm:text-3xl">📮</span>
                   </div>
-                  <div className="flex-1">
+                  <div className="flex-1 min-w-0">
                     <div className="text-gray-600 text-xs font-semibold uppercase tracking-wide mb-2">Mailing Address</div>
-                    <div className="text-lg font-bold text-gray-900 leading-tight">
+                    <div className="text-base sm:text-lg font-bold text-gray-900 leading-tight break-words">
                       {ownerInfo?.mailingAddress && ownerInfo.mailingAddress !== 'null' && ownerInfo.mailingAddress !== 'None'
                         ? ownerInfo.mailingAddress
                         : <span className="text-gray-400">Not Available</span>}
@@ -368,12 +368,12 @@ function OwnerInfoContent() {
             </div>
 
             {/* Email and Phone Section - Always show, even if empty */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 max-w-4xl mx-auto mt-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 mb-4 sm:mb-6 max-w-4xl mx-auto mt-4 sm:mt-6">
                 {/* Email */}
-                <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
-                  <div className="flex items-start gap-4">
-                    <div className="bg-gray-100 rounded-lg p-4 border border-gray-200">
-                      <span className="text-3xl">📧</span>
+                <div className="bg-white rounded-lg p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className="bg-gray-100 rounded-lg p-3 sm:p-4 border border-gray-200 flex-shrink-0">
+                      <span className="text-2xl sm:text-3xl">📧</span>
                     </div>
                     <div className="flex-1">
                       <div className="text-gray-600 text-xs font-semibold uppercase tracking-wide mb-2">Email Address{ownerInfo?.allEmails && ownerInfo.allEmails.length > 1 ? 'es' : ''}</div>
@@ -401,10 +401,10 @@ function OwnerInfoContent() {
                 </div>
 
                 {/* Phone */}
-                <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
-                  <div className="flex items-start gap-4">
-                    <div className="bg-gray-100 rounded-lg p-4 border border-gray-200">
-                      <span className="text-3xl">📞</span>
+                <div className="bg-white rounded-lg p-4 sm:p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200">
+                  <div className="flex items-start gap-3 sm:gap-4">
+                    <div className="bg-gray-100 rounded-lg p-3 sm:p-4 border border-gray-200 flex-shrink-0">
+                      <span className="text-2xl sm:text-3xl">📞</span>
                     </div>
                     <div className="flex-1">
                       <div className="text-gray-600 text-xs font-semibold uppercase tracking-wide mb-2">Phone Number{ownerInfo?.allPhones && ownerInfo.allPhones.length > 1 ? 's' : ''}</div>
@@ -458,14 +458,14 @@ function OwnerInfoContent() {
             })()}
 
             {/* Action Buttons */}
-            <div className="mt-8 flex flex-col sm:flex-row justify-center gap-4">
+            <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row justify-center gap-3 sm:gap-4">
               <button
                 onClick={handleDownload}
                 disabled={!ownerInfo || loading}
-                className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-300 px-10 py-4 rounded-lg hover:from-blue-100 hover:to-blue-200 active:from-blue-200 active:to-blue-300 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-50 font-medium shadow-sm hover:shadow-md text-lg"
+                className="bg-gradient-to-r from-blue-50 to-blue-100 text-blue-700 border border-blue-300 px-6 sm:px-8 lg:px-10 py-3 sm:py-4 rounded-lg hover:from-blue-100 hover:to-blue-200 active:from-blue-200 active:to-blue-300 transition-all duration-200 flex items-center justify-center gap-2 sm:gap-3 disabled:opacity-50 font-medium shadow-sm hover:shadow-md text-base sm:text-lg"
               >
                 <svg 
-                  className="w-5 h-5" 
+                  className="w-4 h-4 sm:w-5 sm:h-5" 
                   fill="none" 
                   stroke="currentColor" 
                   viewBox="0 0 24 24"
@@ -483,7 +483,7 @@ function OwnerInfoContent() {
               <button
                 onClick={fetchOwnerInfo}
                 disabled={loading}
-                className="bg-blue-50 text-blue-700 border border-blue-300 px-10 py-4 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center justify-center gap-3 disabled:opacity-50 font-medium shadow-sm hover:shadow-md text-lg"
+                className="bg-blue-50 text-blue-700 border border-blue-300 px-6 sm:px-8 lg:px-10 py-3 sm:py-4 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center justify-center gap-2 sm:gap-3 disabled:opacity-50 font-medium shadow-sm hover:shadow-md text-base sm:text-lg"
               >
                 <span className="text-xl animate-spin-slow">🔄</span>
                 {loading ? 'Loading...' : 'Refresh Data'}
