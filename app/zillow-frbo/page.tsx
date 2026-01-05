@@ -542,6 +542,52 @@ function ZillowFRBOPageContent() {
         </div>
       </div>
 
+      {/* Stats Cards */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+          {/* Available Listings Card */}
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="mb-4">
+              <div className="text-5xl font-bold text-gray-900">
+                {searchQuery ? filteredListings.length : (data?.total_listings || 0)}
+              </div>
+            </div>
+            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide">
+              {searchQuery ? 'Filtered Listings' : 'Available Listings'}
+            </div>
+            <div className="text-gray-500 text-xs mt-2 font-medium">
+              {searchQuery ? 'Matching search criteria' : 'Active properties'}
+            </div>
+          </div>
+
+          {/* Last Updated Card */}
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
+            <div className="text-xl font-bold">
+              {data?.scrape_date ? (() => {
+                const date = new Date(data.scrape_date)
+                return date.toLocaleString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              })() : 'N/A'}
+            </div>
+            <div className="text-gray-500 text-xs mt-2 font-medium">
+              Last scraped date
+            </div>
+          </div>
+
+          {/* Status Card */}
+          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Status</div>
+            <div className="text-xl font-bold text-gray-900">Active</div>
+          </div>
+        </div>
+      </div>
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
           {(() => {

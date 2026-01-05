@@ -1132,6 +1132,10 @@ function DashboardContent() {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
+              <div className="bg-blue-50 rounded-lg px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 border border-blue-200 flex-shrink-0">
+                <div className="text-2xl sm:text-3xl font-bold text-blue-700">{data?.total_listings ?? 0}</div>
+                <div className="text-xs sm:text-sm text-blue-600 font-medium">Total Listings</div>
+              </div>
               {dataChanged && (
                 <div className="bg-green-100 text-green-700 border border-green-300 px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 rounded-lg shadow-sm font-medium flex items-center gap-2 text-sm sm:text-base whitespace-nowrap">
                   <span className="text-sm">✓</span>
@@ -1310,16 +1314,11 @@ function DashboardContent() {
           <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
             <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
             <div className="text-xl font-bold">
-              {(() => {
-                const displayTime = lastRefreshTime || (data?.scrape_timestamp ? new Date(data.scrape_timestamp) : new Date())
-                return formatDate(displayTime.toISOString())
-              })()}
+              {data?.scrape_timestamp ? formatDate(data.scrape_timestamp) : 'N/A'}
             </div>
-            {lastRefreshTime && data?.scrape_timestamp && (
-              <div className="text-gray-500 text-xs mt-2 font-medium">
-                Data from: {formatDate(data.scrape_timestamp)}
-              </div>
-            )}
+            <div className="text-gray-500 text-xs mt-2 font-medium">
+              Last scraped date
+            </div>
           </div>
 
           {/* Status Card */}
