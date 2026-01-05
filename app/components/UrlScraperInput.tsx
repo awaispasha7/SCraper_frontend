@@ -96,6 +96,7 @@ export default function UrlScraperInput({
 
     // Trigger scraper
     setScrapeStatus({ status: 'starting', message: 'Starting scraper...' })
+    setValidationError(null)
 
     try {
       const response = await fetch(`${BACKEND_URL}/api/trigger-from-url`, {
@@ -109,7 +110,15 @@ export default function UrlScraperInput({
       const data = await response.json()
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to start scraper')
+        // Check if scraper is already running
+        if (data.error && data.error.toLowerCase().includes('already running')) {
+          setScrapeStatus({ status: 'running', message: data.error || 'Scraper is already running' })
+          setValidationError(data.error || 'Scraper is already running')
+          // Don't reset status - keep it as 'running' so button stays disabled
+          return
+        } else {
+          throw new Error(data.error || 'Failed to start scraper')
+        }
       }
 
       setScrapeStatus({
@@ -117,12 +126,13 @@ export default function UrlScraperInput({
         message: `Scraper started for ${getPlatformDisplayName(data.platform || scrapeStatus.platform)}`,
         platform: data.platform || scrapeStatus.platform
       })
+      setValidationError(null)
 
       if (onSuccess && data.platform) {
         onSuccess(data.platform, trimmedUrl)
       }
 
-      // Reset status after 5 seconds
+      // Reset status after 5 seconds (only if successfully started)
       setTimeout(() => {
         setScrapeStatus({ status: 'idle', message: '' })
       }, 5000)
@@ -241,7 +251,7 @@ export default function UrlScraperInput({
             {scrapeStatus.status === 'running' || scrapeStatus.status === 'starting' ? (
               <span className="flex items-center gap-2">
                 <span className="animate-spin">⏳</span>
-                Starting...
+                {scrapeStatus.status === 'running' && validationError ? 'Already Running' : 'Starting...'}
               </span>
             ) : (
               'Start Scraping'
@@ -249,13 +259,11 @@ export default function UrlScraperInput({
           </button>
         </div>
 
-        {/* Status Message */}
-        {scrapeStatus.message && scrapeStatus.status !== 'idle' && (
+        {/* Status Message (exclude error status - errors shown separately) */}
+        {scrapeStatus.message && scrapeStatus.status !== 'idle' && scrapeStatus.status !== 'error' && (
           <div className={`
             mt-2 px-4 py-2 rounded-lg text-sm animate-in fade-in slide-in-from-top-2
-            ${scrapeStatus.status === 'error'
-              ? 'bg-red-50 text-red-700 border border-red-200'
-              : scrapeStatus.status === 'success'
+            ${scrapeStatus.status === 'success'
               ? 'bg-green-50 text-green-700 border border-green-200'
               : 'bg-blue-50 text-blue-700 border border-blue-200'
             }
@@ -268,7 +276,7 @@ export default function UrlScraperInput({
         )}
 
         {/* Validation Error */}
-        {validationError && scrapeStatus.status === 'error' && (
+        {validationError && (
           <div className="mt-2 px-4 py-2 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200 animate-in fade-in slide-in-from-top-2">
             <div className="flex items-start gap-2">
               <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
