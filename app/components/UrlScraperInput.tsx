@@ -46,6 +46,7 @@ export default function UrlScraperInput({
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isValidating, setIsValidating] = useState(false)
   const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; type: string }>>([])
+  const [showStopConfirmModal, setShowStopConfirmModal] = useState(false)
 
   // Poll backend status and logs when scraper is running
   useEffect(() => {
@@ -247,7 +248,38 @@ export default function UrlScraperInput({
     }
   }
 
+  // Check if logs indicate data was saved
+  const hasDataBeenSaved = () => {
+    const savedIndicators = [
+      'saved to supabase',
+      'uploaded to supabase',
+      'inserted',
+      'updated',
+      'listing saved',
+      'saved listing'
+    ]
+    return logs.some(log => 
+      savedIndicators.some(indicator => 
+        log.message.toLowerCase().includes(indicator)
+      )
+    )
+  }
+
   const handleStopScraper = async () => {
+    if (!scrapeStatus.platform) return
+
+    // Check if data has been saved
+    if (hasDataBeenSaved()) {
+      // Show confirmation modal
+      setShowStopConfirmModal(true)
+      return
+    }
+
+    // No data saved, stop immediately
+    await executeStopScraper()
+  }
+
+  const executeStopScraper = async () => {
     if (!scrapeStatus.platform) return
 
     const statusKey = PLATFORM_TO_STATUS_KEY[scrapeStatus.platform]
@@ -263,6 +295,7 @@ export default function UrlScraperInput({
       if (response.ok) {
         setScrapeStatus({ status: 'idle', message: 'Scraper stop requested', platform: scrapeStatus.platform })
         setValidationError(null)
+        setShowStopConfirmModal(false)
         // Status will be updated by the polling effect
       } else {
         setValidationError(data.error || 'Failed to stop scraper')
@@ -270,6 +303,16 @@ export default function UrlScraperInput({
     } catch (error: any) {
       setValidationError(error.message || 'Failed to stop scraper')
     }
+  }
+
+  const handleStopConfirmSave = () => {
+    // Save it - stop scraper (data already saved)
+    executeStopScraper()
+  }
+
+  const handleStopConfirmCancel = () => {
+    // Cancel/Continue - don't stop, just close modal
+    setShowStopConfirmModal(false)
   }
 
   const handleBlur = () => {
@@ -477,6 +520,52 @@ export default function UrlScraperInput({
           </div>
         )}
       </div>
+
+      {/* Stop Confirmation Modal */}
+      {showStopConfirmModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={handleStopConfirmCancel}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 sm:p-8" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-4 mb-6">
+              <div className="flex-shrink-0 w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg sm:text-xl font-bold text-gray-900">New Data Found</h3>
+                <p className="text-sm sm:text-base text-gray-600 mt-1">
+                  Scraping has found new listings. What would you like to do?
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              <button
+                onClick={handleStopConfirmSave}
+                className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                Save It (Stop Scraping)
+              </button>
+              <button
+                onClick={handleStopConfirmCancel}
+                className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold transition-all duration-200 border border-gray-300 flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+                Cancel (Continue Scraping)
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-500 text-center">
+              Note: Data is already saved. "Save It" will stop the scraper now.
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
