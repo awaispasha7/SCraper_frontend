@@ -333,59 +333,51 @@ export default function UrlScraperInput({
     }
   }
 
-  // Check if logs indicate data was saved or processed
-  const hasDataBeenSaved = () => {
-    if (logs.length === 0) return false
+  // Count listings found from logs
+  const countListingsFound = (): number => {
+    if (logs.length === 0) return 0
     
     const msg = logs.map(log => log.message.toLowerCase()).join(' ')
     
-    // Explicit save indicators
-    const explicitSaveIndicators = [
-      'saved to supabase',
-      'uploaded to supabase',
-      'inserted',
-      'updated',
-      'listing saved',
-      'saved listing'
+    // Patterns to extract listing counts
+    const countPatterns = [
+      /scraped.*?(\d+)\s*items?/i,
+      /(\d+)\s*items? scraped/i,
+      /scraped:\s*(\d+)/i,
+      /total.*?(\d+)\s*listings?/i,
+      /(\d+)\s*listings? found/i,
+      /found:\s*(\d+)/i,
+      /count increased from \d+ to (\d+)/i,
+      /current unique listing links found:\s*(\d+)/i,
+      /listing links found:\s*(\d+)/i,
+      /total unique urls processed:\s*(\d+)/i
     ]
     
-    // Data processing indicators (from FSBO logs)
-    const processingIndicators = [
-      'new listings loaded',
-      'count increased',
-      'current unique listing links found',
-      'listing links found',
-      'total unique urls processed',
-      'incremental check',
-      'listings already exist',
-      '[ok] listing',
-      'unique listing links'
-    ]
+    // Try to extract count from patterns
+    for (const pattern of countPatterns) {
+      const match = msg.match(pattern)
+      if (match && match[1]) {
+        const count = parseInt(match[1], 10)
+        if (!isNaN(count) && count > 0) {
+          return count
+        }
+      }
+    }
     
-    // Check for explicit saves
-    const hasExplicitSave = explicitSaveIndicators.some(indicator => msg.includes(indicator))
-    
-    // Check for processing indicators
-    const hasProcessing = processingIndicators.some(indicator => msg.includes(indicator))
-    
-    // Check for numeric counts in messages (e.g., "found: 20", "count: 40", "520 listings")
-    const hasNumericCount = logs.some(log => {
+    // Fallback: Count "SCRAPED:" or "Saved to Supabase" messages in logs
+    const scrapedCount = logs.filter(log => {
       const logMsg = log.message.toLowerCase()
-      // Match patterns like "found: 520", "count increased from 500 to 520", "520 (Expected: 1314)"
-      const patterns = [
-        /count increased from \d+ to \d+/,
-        /found:\s*\d+/,
-        /links found:\s*\d+/,
-        /listings found:\s*\d+/,
-        /unique listing links found:\s*\d+/,
-        /\d+\s*\(expected:\s*\d+\)/,
-        /current unique listing links found:\s*\d+/
-      ]
-      return patterns.some(pattern => pattern.test(logMsg))
-    })
+      return logMsg.includes('scraped:') || 
+             logMsg.includes('saved to supabase') || 
+             logMsg.includes('[ok] saved to supabase')
+    }).length
     
-    // If we have processing indicators OR numeric counts, consider it as data found
-    return hasExplicitSave || (hasProcessing && hasNumericCount) || hasNumericCount
+    return scrapedCount
+  }
+
+  // Check if logs indicate data was saved or processed
+  const hasDataBeenSaved = () => {
+    return countListingsFound() > 0
   }
 
   const handleStopScraper = async () => {
@@ -439,13 +431,13 @@ export default function UrlScraperInput({
     }
   }
 
-  const handleStopConfirmSave = () => {
-    // Save it - stop scraper (data already saved)
+  const handleStopConfirmStop = () => {
+    // Stop scraper
     executeStopScraper()
   }
 
-  const handleStopConfirmCancel = () => {
-    // Cancel/Continue - don't stop, just close modal
+  const handleStopConfirmContinue = () => {
+    // Continue scraping - just close modal
     setShowStopConfirmModal(false)
   }
 
@@ -655,50 +647,52 @@ export default function UrlScraperInput({
       </div>
 
       {/* Stop Confirmation Modal */}
-      {showStopConfirmModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={handleStopConfirmCancel}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 sm:p-8" onClick={(e) => e.stopPropagation()}>
-            <div className="flex items-center gap-4 mb-6">
-              <div className="flex-shrink-0 w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
+      {showStopConfirmModal && (() => {
+        const listingsCount = countListingsFound()
+        return (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4" onClick={handleStopConfirmContinue}>
+            <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 sm:p-8" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-4 mb-6">
+                <div className="flex-shrink-0 w-12 h-12 bg-yellow-100 rounded-full flex items-center justify-center">
+                  <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg sm:text-xl font-bold text-gray-900">New Data Found</h3>
+                  <p className="text-sm sm:text-base text-gray-600 mt-1">
+                    {listingsCount > 0 
+                      ? `${listingsCount} listing${listingsCount !== 1 ? 's' : ''} found so far. What would you like to do?`
+                      : 'New listings have been found. What would you like to do?'
+                    }
+                  </p>
+                </div>
               </div>
-              <div className="flex-1">
-                <h3 className="text-lg sm:text-xl font-bold text-gray-900">New Data Found</h3>
-                <p className="text-sm sm:text-base text-gray-600 mt-1">
-                  Scraping has found new listings. What would you like to do?
-                </p>
+
+              <div className="space-y-3">
+                <button
+                  onClick={handleStopConfirmStop}
+                  className="w-full px-4 py-3 bg-red-600 hover:bg-red-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Stop
+                </button>
+                <button
+                  onClick={handleStopConfirmContinue}
+                  className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                  </svg>
+                  Continue Scraping
+                </button>
               </div>
             </div>
-
-            <div className="space-y-3 mb-6">
-              <button
-                onClick={handleStopConfirmSave}
-                className="w-full px-4 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-semibold transition-all duration-200 shadow-md hover:shadow-lg flex items-center justify-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                Save It (Stop Scraping)
-              </button>
-              <button
-                onClick={handleStopConfirmCancel}
-                className="w-full px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg font-semibold transition-all duration-200 border border-gray-300 flex items-center justify-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                Cancel (Continue Scraping)
-              </button>
-            </div>
-
-            <p className="text-xs text-gray-500 text-center">
-              Note: Data is already saved. "Save It" will stop the scraper now.
-            </p>
           </div>
-        </div>
-      )}
+        )
+      })()}
     </div>
   )
 }
