@@ -211,6 +211,31 @@ export default function UrlScraperInput({
     }
   }
 
+  const handleStopScraper = async () => {
+    if (!scrapeStatus.platform) return
+
+    const statusKey = PLATFORM_TO_STATUS_KEY[scrapeStatus.platform]
+    if (!statusKey) return
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/stop-scraper?id=${statusKey}`, {
+        method: 'GET',
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setScrapeStatus({ status: 'idle', message: 'Scraper stop requested', platform: scrapeStatus.platform })
+        setValidationError(null)
+        // Status will be updated by the polling effect
+      } else {
+        setValidationError(data.error || 'Failed to stop scraper')
+      }
+    } catch (error: any) {
+      setValidationError(error.message || 'Failed to stop scraper')
+    }
+  }
+
   const handleBlur = () => {
     if (url.trim() && url.trim() !== defaultUrl) {
       validateUrl(url.trim())
@@ -302,28 +327,42 @@ export default function UrlScraperInput({
               </div>
             )}
           </div>
-          <button
-            onClick={handleScrape}
-            disabled={!url.trim() || scrapeStatus.status === 'running' || isValidating || scrapeStatus.status === 'starting'}
-            className={`
-              px-6 py-3 rounded-lg font-semibold
-              transition-all duration-200
-              disabled:opacity-50 disabled:cursor-not-allowed
-              ${scrapeStatus.status === 'running' || scrapeStatus.status === 'starting'
-                ? 'bg-blue-600 text-white cursor-wait'
-                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
-              }
-            `}
-          >
-            {scrapeStatus.status === 'running' || scrapeStatus.status === 'starting' ? (
-              <span className="flex items-center gap-2">
-                <span className="animate-spin">⏳</span>
-                {scrapeStatus.status === 'running' && validationError ? 'Already Running' : 'Starting...'}
-              </span>
+          <div className="flex gap-2">
+            {scrapeStatus.status === 'running' ? (
+              <button
+                onClick={handleStopScraper}
+                className="px-6 py-3 rounded-lg font-semibold bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+              >
+                <span className="flex items-center gap-2">
+                  <span>🛑</span>
+                  <span>Stop Scraper</span>
+                </span>
+              </button>
             ) : (
-              'Start Scraping'
+              <button
+                onClick={handleScrape}
+                disabled={!url.trim() || isValidating || scrapeStatus.status === 'starting'}
+                className={`
+                  px-6 py-3 rounded-lg font-semibold
+                  transition-all duration-200
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  ${scrapeStatus.status === 'starting'
+                    ? 'bg-blue-600 text-white cursor-wait'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
+                  }
+                `}
+              >
+                {scrapeStatus.status === 'starting' ? (
+                  <span className="flex items-center gap-2">
+                    <span className="animate-spin">⏳</span>
+                    Starting...
+                  </span>
+                ) : (
+                  'Start Scraping'
+                )}
+              </button>
             )}
-          </button>
+          </div>
         </div>
 
         {/* Status Message (exclude error status - errors shown separately) */}
