@@ -730,7 +730,7 @@ function ApartmentsPageContent() {
                         href={listing.listing_link}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="block w-full bg-cyan-50 text-cyan-700 border border-cyan-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-cyan-100 active:bg-cyan-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center focus:outline-none focus:ring-0"
+                        className="w-full bg-cyan-50 text-cyan-700 border border-cyan-300 text-center py-2.5 sm:py-3 rounded-lg hover:bg-cyan-100 active:bg-cyan-200 transition-all duration-200 font-medium shadow-sm hover:shadow-md text-xs sm:text-sm min-h-[44px] flex items-center justify-center focus:outline-none focus:ring-0"
                       >
                         <span className="hidden sm:inline">View Listing</span>
                         <span className="sm:hidden">View</span>
