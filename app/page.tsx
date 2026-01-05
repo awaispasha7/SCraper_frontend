@@ -32,6 +32,9 @@ export default function HomePage() {
   const [checkingAuth, setCheckingAuth] = useState(true)
   const [lastScrapeTime, setLastScrapeTime] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  const [totalListings, setTotalListings] = useState<number | null>(null)
+  const [loadingTotalListings, setLoadingTotalListings] = useState(true)
+  const [displayCount, setDisplayCount] = useState(0)
 
   // Scraper control states
   const [scraperStatuses, setScraperStatuses] = useState<Record<string, ScraperStatus>>({
@@ -216,12 +219,72 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [isAuthenticated, runningAll]) // Depend on runningAll to detect transitions
 
-  // Fetch last scrape time from backend status (non-blocking)
+  // Animate counting effect
+  useEffect(() => {
+    if (totalListings === null) return
+
+    const duration = 1500 // Animation duration in ms
+    const steps = 60
+    const increment = totalListings / steps
+    let currentStep = 0
+
+    const timer = setInterval(() => {
+      currentStep++
+      if (currentStep >= steps) {
+        setDisplayCount(totalListings)
+        clearInterval(timer)
+      } else {
+        setDisplayCount(Math.floor(increment * currentStep))
+      }
+    }, duration / steps)
+
+    return () => clearInterval(timer)
+  }, [totalListings])
+
+  // Fetch total listings count and last scrape time (non-blocking)
   useEffect(() => {
     if (!isAuthenticated) return
 
     // Set loading to false immediately (don't block page render)
     setLoading(false)
+
+    // Fetch total listings count from all platforms
+    const fetchTotalListings = async () => {
+      try {
+        setLoadingTotalListings(true)
+        // Fetch from all listing APIs in parallel to get counts
+        const [fsboRes, truliaRes, redfinRes, apartmentsRes, zillowFsboRes, zillowFrboRes, hotpadsRes] = await Promise.all([
+          fetch('/api/listings?' + new Date().getTime(), { cache: 'no-store' }).catch(() => null),
+          fetch('/api/trulia-listings?' + new Date().getTime(), { cache: 'no-store' }).catch(() => null),
+          fetch('/api/redfin-listings?' + new Date().getTime(), { cache: 'no-store' }).catch(() => null),
+          fetch('/api/apartments-listings?' + new Date().getTime(), { cache: 'no-store' }).catch(() => null),
+          fetch('/api/zillow-fsbo-listings?' + new Date().getTime(), { cache: 'no-store' }).catch(() => null),
+          fetch('/api/zillow-frbo-listings?' + new Date().getTime(), { cache: 'no-store' }).catch(() => null),
+          fetch('/api/hotpads-listings?' + new Date().getTime(), { cache: 'no-store' }).catch(() => null)
+        ])
+
+        const results = await Promise.all([
+          fsboRes?.json().catch(() => ({ total_listings: 0 })) || Promise.resolve({ total_listings: 0 }),
+          truliaRes?.json().catch(() => ({ total_listings: 0 })) || Promise.resolve({ total_listings: 0 }),
+          redfinRes?.json().catch(() => ({ total_listings: 0 })) || Promise.resolve({ total_listings: 0 }),
+          apartmentsRes?.json().catch(() => ({ total_listings: 0 })) || Promise.resolve({ total_listings: 0 }),
+          zillowFsboRes?.json().catch(() => ({ total_listings: 0 })) || Promise.resolve({ total_listings: 0 }),
+          zillowFrboRes?.json().catch(() => ({ total_listings: 0 })) || Promise.resolve({ total_listings: 0 }),
+          hotpadsRes?.json().catch(() => ({ total_listings: 0 })) || Promise.resolve({ total_listings: 0 })
+        ])
+
+        const total = results.reduce((sum, data) => {
+          return sum + (data?.total_listings || data?.listings?.length || 0)
+        }, 0)
+
+        setTotalListings(total)
+      } catch (err) {
+        console.error('Error fetching total listings:', err)
+        setTotalListings(0)
+      } finally {
+        setLoadingTotalListings(false)
+      }
+    }
 
     // Fetch last scrape time in background (non-blocking)
     const fetchLastScrapeTime = async () => {
@@ -264,6 +327,7 @@ export default function HomePage() {
       }
     }
 
+    fetchTotalListings()
     fetchLastScrapeTime()
   }, [isAuthenticated])
 
@@ -490,7 +554,15 @@ export default function HomePage() {
               <div>
                 <p className="text-gray-500 text-sm font-medium">Total Listings</p>
                 <p className="text-3xl font-bold text-gray-900">
-                  N/A
+                  {loadingTotalListings ? (
+                    <span className="inline-flex items-center gap-2">
+                      <span className="animate-pulse">...</span>
+                    </span>
+                  ) : totalListings !== null ? (
+                    displayCount.toLocaleString()
+                  ) : (
+                    'N/A'
+                  )}
                 </p>
               </div>
             </div>
