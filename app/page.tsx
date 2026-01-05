@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-client'
-import ConsoleViewer from './components/ConsoleViewer'
 import UrlScraperInput from './components/UrlScraperInput'
 
 interface ScraperCard {
@@ -555,8 +554,10 @@ export default function HomePage() {
                 <p className="text-gray-500 text-sm font-medium">Total Listings</p>
                 <p className="text-3xl font-bold text-gray-900">
                   {loadingTotalListings ? (
-                    <span className="inline-flex items-center gap-2">
-                      <span className="animate-pulse">...</span>
+                    <span className="inline-flex items-center gap-1">
+                      <span className="animate-bounce [animation-delay:-0.3s]">.</span>
+                      <span className="animate-bounce [animation-delay:-0.15s]">.</span>
+                      <span className="animate-bounce">.</span>
                     </span>
                   ) : totalListings !== null ? (
                     displayCount.toLocaleString()
@@ -858,8 +859,6 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Console Viewer (Hidden Logic) */}
-      <ConsoleViewer />
     </div>
   )
 }
