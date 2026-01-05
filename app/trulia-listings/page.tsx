@@ -58,9 +58,43 @@ function TruliaListingsPageContent() {
   })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [isStartingScraper, setIsStartingScraper] = useState(false)
   const [searchQuery, setSearchQuery] = useState('') // Search query for filtering listings
   const [currentPage, setCurrentPage] = useState(1) // Current page number
   const listingsPerPage = 20 // Listings per page
+
+  // Handle starting scraper with default URL
+  const handleStartScrapingWithDefault = async () => {
+    const defaultUrl = getDefaultUrlForPlatform('trulia')
+    if (!defaultUrl) {
+      setError('No default URL configured')
+      return
+    }
+
+    setIsStartingScraper(true)
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/trigger-from-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: defaultUrl }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start scraper')
+      }
+
+      // Success - refresh listings after a delay
+      setTimeout(() => fetchListings(), 5000)
+    } catch (error: any) {
+      setError(error.message || 'Failed to start scraper')
+    } finally {
+      setIsStartingScraper(false)
+    }
+  }
 
   const handleLogout = async () => {
     try {

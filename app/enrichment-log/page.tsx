@@ -260,9 +260,9 @@ export default function EnrichmentLogPage() {
                         </div>
                     </div>
                     <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-4 w-full md:w-auto">
-                        <p className="text-gray-500 text-xs sm:text-sm hidden sm:block">
+                        {/* <p className="text-gray-500 text-xs sm:text-sm hidden sm:block">
                             💡 Tip: Click on an address to view it in the dashboard.
-                        </p>
+                        </p> */}
                         {stats?.is_running && (
                             <p className="text-blue-600 text-xs sm:text-sm font-medium animate-pulse flex items-center gap-2">
                                 <span className="h-2 w-2 bg-blue-600 rounded-full"></span>
