@@ -30,9 +30,8 @@ export default function HomePage() {
   const router = useRouter()
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
-  const [totalListings, setTotalListings] = useState(0)
   const [lastScrapeTime, setLastScrapeTime] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
 
   // Scraper control states
   const [scraperStatuses, setScraperStatuses] = useState<Record<string, ScraperStatus>>({
@@ -217,82 +216,37 @@ export default function HomePage() {
     return () => clearInterval(interval)
   }, [isAuthenticated, runningAll]) // Depend on runningAll to detect transitions
 
-  // Fetch total listings count and last scrape time
+  // Fetch last scrape time from backend status (non-blocking)
   useEffect(() => {
     if (!isAuthenticated) return
 
-    const fetchStats = async () => {
+    // Set loading to false immediately (don't block page render)
+    setLoading(false)
+
+    // Fetch last scrape time in background (non-blocking)
+    const fetchLastScrapeTime = async () => {
       try {
-        setLoading(true)
-
-        // Fetch last scrape time from backend status
-        try {
-          const statusRes = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
-          if (statusRes.ok) {
-            const statusData = await statusRes.json()
-            const finishedAt = statusData.all_scrapers?.finished_at
-            if (finishedAt) {
-              const scrapeDate = new Date(finishedAt)
-              setLastScrapeTime(scrapeDate.toLocaleString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              }))
-            }
-          }
-        } catch (err) {
-          console.error('Error fetching last scrape time:', err)
-        }
-
-        // Fetch from all APIs in parallel for total count
-        const [fsboRes, truliaRes, redfinRes, apartmentsRes, zillowFsboRes, zillowFrboRes, hotpadsRes] = await Promise.all([
-          fetch('/api/listings?' + Date.now(), { cache: 'no-store' }).catch(() => null),
-          fetch('/api/trulia-listings?' + Date.now(), { cache: 'no-store' }).catch(() => null),
-          fetch('/api/redfin-listings?' + Date.now(), { cache: 'no-store' }).catch(() => null),
-          fetch('/api/apartments-listings?' + Date.now(), { cache: 'no-store' }).catch(() => null),
-          fetch('/api/zillow-fsbo-listings?' + Date.now(), { cache: 'no-store' }).catch(() => null),
-          fetch('/api/zillow-frbo-listings?' + Date.now(), { cache: 'no-store' }).catch(() => null),
-          fetch('/api/hotpads-listings?' + Date.now(), { cache: 'no-store' }).catch(() => null)
-        ])
-
-        let total = 0
-
-        const parseResponse = async (res: Response | null) => {
-          if (!res || !res.ok) return { count: 0 }
-          try {
-            const data = await res.json()
-            const count = data.total_listings || data.listings?.length || 0
-            return { count }
-          } catch {
-            return { count: 0 }
+        const statusRes = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+        if (statusRes.ok) {
+          const statusData = await statusRes.json()
+          const finishedAt = statusData.all_scrapers?.finished_at
+          if (finishedAt) {
+            const scrapeDate = new Date(finishedAt)
+            setLastScrapeTime(scrapeDate.toLocaleString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+              hour: '2-digit',
+              minute: '2-digit'
+            }))
           }
         }
-
-        const results = await Promise.all([
-          parseResponse(fsboRes),
-          parseResponse(truliaRes),
-          parseResponse(redfinRes),
-          parseResponse(apartmentsRes),
-          parseResponse(zillowFsboRes),
-          parseResponse(zillowFrboRes),
-          parseResponse(hotpadsRes)
-        ])
-
-        results.forEach(({ count }) => {
-          total += count
-        })
-
-        setTotalListings(total)
       } catch (err) {
-        console.error('Error fetching stats:', err)
-      } finally {
-        setLoading(false)
+        // Silently fail - don't block page
       }
     }
 
-    fetchStats()
+    fetchLastScrapeTime()
   }, [isAuthenticated])
 
   const handleLogout = async () => {
@@ -518,7 +472,7 @@ export default function HomePage() {
               <div>
                 <p className="text-gray-500 text-sm font-medium">Total Listings</p>
                 <p className="text-3xl font-bold text-gray-900">
-                  {loading ? '...' : totalListings.toLocaleString()}
+                  N/A
                 </p>
               </div>
             </div>
