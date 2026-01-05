@@ -620,23 +620,6 @@ function TruliaListingsPageContent() {
                 <div className="text-2xl sm:text-3xl font-bold text-blue-700">{data.total_listings}</div>
                 <div className="text-xs sm:text-sm text-blue-600 font-medium">Total Listings</div>
               </div>
-              <div className="relative group">
-                <button
-                  onClick={handleStartScrapingWithDefault}
-                  disabled={isStartingScraper}
-                  className="bg-green-600 text-white px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 rounded-lg hover:bg-green-700 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial min-h-[44px] disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <span className="text-base sm:text-lg">
-                    {isStartingScraper ? '⏳' : '▶️'}
-                  </span>
-                  <span>{isStartingScraper ? 'Starting...' : 'Start Scraping'}</span>
-                </button>
-                {/* Tooltip on hover */}
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 max-w-xs truncate">
-                  {getDefaultUrlForPlatform('trulia')}
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                </div>
-              </div>
               <div className="flex items-center gap-2 sm:gap-3 flex-1 md:flex-initial">
                 <button
                   onClick={fetchListings}

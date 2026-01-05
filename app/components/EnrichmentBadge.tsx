@@ -16,7 +16,8 @@ export default function EnrichmentBadge({ status }: EnrichmentBadgeProps) {
                     bg: 'bg-green-100',
                     text: 'text-green-800',
                     border: 'border-green-300',
-                    label: '✓ Enriched'
+                    icon: '✓',
+                    label: 'Enriched'
                 }
             case 'no_owner_data':
             case 'no_data':
@@ -24,28 +25,32 @@ export default function EnrichmentBadge({ status }: EnrichmentBadgeProps) {
                     bg: 'bg-red-100',
                     text: 'text-red-800',
                     border: 'border-red-300',
-                    label: '✗ No Data'
+                    icon: '✗',
+                    label: 'No Data'
                 }
             case 'checking':
                 return {
                     bg: 'bg-blue-100',
                     text: 'text-blue-800',
                     border: 'border-blue-300',
-                    label: '⟳ Processing'
+                    icon: '⟳',
+                    label: 'Processing'
                 }
             case 'failed':
                 return {
                     bg: 'bg-orange-100',
                     text: 'text-orange-800',
                     border: 'border-orange-300',
-                    label: '⚠ Failed'
+                    icon: '⚠',
+                    label: 'Failed'
                 }
             case 'orphaned':
                 return {
                     bg: 'bg-gray-100',
                     text: 'text-gray-600',
                     border: 'border-gray-300',
-                    label: '⊘ Orphaned'
+                    icon: '⊘',
+                    label: 'Orphaned'
                 }
             case 'never_checked':
             default:
@@ -53,7 +58,8 @@ export default function EnrichmentBadge({ status }: EnrichmentBadgeProps) {
                     bg: 'bg-yellow-100',
                     text: 'text-yellow-800',
                     border: 'border-yellow-300',
-                    label: '◯ Pending'
+                    icon: '◯',
+                    label: 'Pending'
                 }
         }
     }
@@ -61,8 +67,9 @@ export default function EnrichmentBadge({ status }: EnrichmentBadgeProps) {
     const style = getBadgeStyle()
 
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border ${style.bg} ${style.text} ${style.border}`}>
-            {style.label}
+        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border whitespace-nowrap ${style.bg} ${style.text} ${style.border}`}>
+            <span>{style.icon}</span>
+            <span>{style.label}</span>
         </span>
     )
 }

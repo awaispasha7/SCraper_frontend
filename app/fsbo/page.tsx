@@ -1139,24 +1139,6 @@ function DashboardContent() {
                   <span className="sm:hidden">Updated!</span>
                 </div>
               )}
-              <div className="relative group">
-                <button
-                  onClick={handleStartScrapingWithDefault}
-                  disabled={isStartingScraper || isSyncing}
-                  className="bg-blue-600 text-white px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
-                >
-                  <span className="text-base sm:text-lg">
-                    {isStartingScraper ? '⏳' : '▶️'}
-                  </span>
-                  <span className="hidden sm:inline">{isStartingScraper ? 'Starting...' : 'Start Scraping'}</span>
-                  <span className="sm:hidden">{isStartingScraper ? 'Starting...' : 'Start'}</span>
-                </button>
-                {/* Tooltip on hover */}
-                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 max-w-xs truncate">
-                  {getDefaultUrlForPlatform('fsbo')}
-                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
-                </div>
-              </div>
               <button
                 onClick={handleRefresh}
                 disabled={loading}
