@@ -68,6 +68,11 @@ export default function UrlScraperInput({
           const apiStatus = data[statusKey]
           const isBackendRunning = apiStatus?.status === 'running'
 
+          // Debug logging
+          if (!isBackendRunning && scrapeStatus.status === 'running') {
+            console.log(`[UrlScraperInput] Backend reports scraper stopped for ${statusKey}:`, apiStatus)
+          }
+
           // If backend says scraper is no longer running, reset status
           if (!isBackendRunning) {
             setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
@@ -76,7 +81,8 @@ export default function UrlScraperInput({
           }
         }
       } catch (e) {
-        // Ignore polling errors - don't reset status if we can't check
+        // Log polling errors for debugging
+        console.error('[UrlScraperInput] Error polling status:', e)
       }
     }
 
@@ -86,9 +92,13 @@ export default function UrlScraperInput({
         if (res.ok) {
           const data = await res.json()
           setLogs(data.logs || [])
+        } else {
+          // Log error for debugging
+          console.error('Failed to fetch logs:', res.status, res.statusText)
         }
       } catch (e) {
-        // Ignore log fetch errors
+        // Log error for debugging
+        console.error('Error fetching logs:', e)
       }
     }
 
@@ -400,8 +410,8 @@ export default function UrlScraperInput({
           </div>
         )}
 
-        {/* Log Viewer - Show when scraper is running */}
-        {scrapeStatus.status === 'running' && logs.length > 0 && (
+        {/* Log Viewer - Show when scraper is running (show even if empty to indicate polling) */}
+        {scrapeStatus.status === 'running' && (
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <h4 className="text-sm font-semibold text-gray-700">Scraper Logs</h4>
@@ -409,7 +419,10 @@ export default function UrlScraperInput({
             </div>
             <div className="bg-gray-900 rounded-lg p-4 border border-gray-700" style={{ maxHeight: '300px', overflowY: 'auto' }}>
               <div className="font-mono text-xs space-y-1">
-                {logs.map((log, index) => {
+                {logs.length === 0 ? (
+                  <div className="text-gray-500 italic">Waiting for logs...</div>
+                ) : (
+                  logs.map((log, index) => {
                   const logType = log.type || 'info'
                   const typeColors: Record<string, string> = {
                     info: 'text-gray-300',
@@ -428,7 +441,8 @@ export default function UrlScraperInput({
                       <span className="flex-1 break-words">{log.message}</span>
                     </div>
                   )
-                })}
+                  })
+                )}
               </div>
             </div>
           </div>
