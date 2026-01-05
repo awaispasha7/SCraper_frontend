@@ -248,9 +248,14 @@ export default function UrlScraperInput({
     }
   }
 
-  // Check if logs indicate data was saved
+  // Check if logs indicate data was saved or processed
   const hasDataBeenSaved = () => {
-    const savedIndicators = [
+    if (logs.length === 0) return false
+    
+    const msg = logs.map(log => log.message.toLowerCase()).join(' ')
+    
+    // Explicit save indicators
+    const explicitSaveIndicators = [
       'saved to supabase',
       'uploaded to supabase',
       'inserted',
@@ -258,18 +263,62 @@ export default function UrlScraperInput({
       'listing saved',
       'saved listing'
     ]
-    return logs.some(log => 
-      savedIndicators.some(indicator => 
-        log.message.toLowerCase().includes(indicator)
-      )
-    )
+    
+    // Data processing indicators (from FSBO logs)
+    const processingIndicators = [
+      'new listings loaded',
+      'count increased',
+      'current unique listing links found',
+      'listing links found',
+      'total unique urls processed',
+      'incremental check',
+      'listings already exist',
+      '[ok] listing',
+      'unique listing links'
+    ]
+    
+    // Check for explicit saves
+    const hasExplicitSave = explicitSaveIndicators.some(indicator => msg.includes(indicator))
+    
+    // Check for processing indicators
+    const hasProcessing = processingIndicators.some(indicator => msg.includes(indicator))
+    
+    // Check for numeric counts in messages (e.g., "found: 20", "count: 40", "520 listings")
+    const hasNumericCount = logs.some(log => {
+      const logMsg = log.message.toLowerCase()
+      // Match patterns like "found: 520", "count increased from 500 to 520", "520 (Expected: 1314)"
+      const patterns = [
+        /count increased from \d+ to \d+/,
+        /found:\s*\d+/,
+        /links found:\s*\d+/,
+        /listings found:\s*\d+/,
+        /unique listing links found:\s*\d+/,
+        /\d+\s*\(expected:\s*\d+\)/,
+        /current unique listing links found:\s*\d+/
+      ]
+      return patterns.some(pattern => pattern.test(logMsg))
+    })
+    
+    // If we have processing indicators OR numeric counts, consider it as data found
+    return hasExplicitSave || (hasProcessing && hasNumericCount) || hasNumericCount
   }
 
   const handleStopScraper = async () => {
     if (!scrapeStatus.platform) return
 
-    // Check if data has been saved
-    if (hasDataBeenSaved()) {
+    // Check if data has been saved or found
+    const hasData = hasDataBeenSaved()
+    
+    // Debug logging (can be removed later)
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[Stop Scraper] Checking for data:', {
+        hasData,
+        logCount: logs.length,
+        sampleLogs: logs.slice(-5).map(l => l.message.substring(0, 100))
+      })
+    }
+    
+    if (hasData) {
       // Show confirmation modal
       setShowStopConfirmModal(true)
       return
