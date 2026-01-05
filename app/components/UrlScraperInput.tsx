@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { validateAndDetectPlatform, getPlatformDisplayName, validateUrlFormat } from '@/lib/url-validation'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
@@ -141,6 +141,9 @@ export default function UrlScraperInput({
     return () => clearInterval(interval)
   }, [scrapeStatus.status, scrapeStatus.platform])
 
+  // Ref to track validation timeout
+  const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newUrl = e.target.value
     setUrl(newUrl)
@@ -148,7 +151,34 @@ export default function UrlScraperInput({
     if (scrapeStatus.status === 'error') {
       setScrapeStatus({ status: 'idle', message: '' })
     }
+
+    // Clear previous timeout
+    if (validationTimeoutRef.current) {
+      clearTimeout(validationTimeoutRef.current)
+    }
+
+    // Debounce validation - validate after user stops typing for 500ms
+    const trimmedUrl = newUrl.trim()
+    if (trimmedUrl && trimmedUrl.length > 10) { // Only validate if URL looks valid (at least 10 chars)
+      validationTimeoutRef.current = setTimeout(() => {
+        validateUrl(trimmedUrl).catch(() => {
+          // Error handling is done in validateUrl
+        })
+      }, 500)
+    } else {
+      // Clear validation status if URL is too short
+      setScrapeStatus({ status: 'idle', message: '', platform: null })
+    }
   }
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (validationTimeoutRef.current) {
+        clearTimeout(validationTimeoutRef.current)
+      }
+    }
+  }, [])
 
   const validateUrl = async (urlToValidate: string): Promise<boolean> => {
     setIsValidating(true)
@@ -194,10 +224,17 @@ export default function UrlScraperInput({
       return
     }
 
-    // Validate with backend
-    const isValid = await validateUrl(trimmedUrl)
-    if (!isValid) {
+    // If we're already validating, wait for it to complete
+    if (isValidating) {
       return
+    }
+
+    // If platform is not detected yet, validate now (synchronous check)
+    if (!scrapeStatus.platform || scrapeStatus.status === 'idle') {
+      const isValid = await validateUrl(trimmedUrl)
+      if (!isValid) {
+        return
+      }
     }
 
     // Trigger scraper
@@ -365,9 +402,8 @@ export default function UrlScraperInput({
   }
 
   const handleBlur = () => {
-    if (url.trim() && url.trim() !== defaultUrl) {
-      validateUrl(url.trim())
-    }
+    // Validation is now handled automatically on input change
+    // This handler is kept for potential future use but doesn't need to validate
   }
 
   const getStatusIcon = () => {
