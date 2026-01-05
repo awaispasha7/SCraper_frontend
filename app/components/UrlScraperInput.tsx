@@ -68,16 +68,42 @@ export default function UrlScraperInput({
           const apiStatus = data[statusKey]
           const isBackendRunning = apiStatus?.status === 'running'
 
-          // Debug logging
+          // If backend says scraper is no longer running, check result and show message
           if (!isBackendRunning && scrapeStatus.status === 'running') {
-            console.log(`[UrlScraperInput] Backend reports scraper stopped for ${statusKey}:`, apiStatus)
-          }
-
-          // If backend says scraper is no longer running, reset status
-          if (!isBackendRunning) {
-            setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
-            setValidationError(null)
-            setLogs([])
+            const lastResult = apiStatus?.last_result
+            if (lastResult) {
+              if (lastResult.success) {
+                setScrapeStatus({ 
+                  status: 'success', 
+                  message: `✅ Scraping completed successfully!`, 
+                  platform: scrapeStatus.platform 
+                })
+                if (onSuccess && scrapeStatus.platform) {
+                  onSuccess(scrapeStatus.platform, url)
+                }
+                // Reset to idle after 5 seconds
+                setTimeout(() => {
+                  setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
+                  setLogs([])
+                }, 5000)
+              } else {
+                const errorMsg = lastResult.error || `Scraping failed with return code ${lastResult.returncode || 'unknown'}`
+                setScrapeStatus({ 
+                  status: 'error', 
+                  message: errorMsg,
+                  platform: scrapeStatus.platform 
+                })
+                setValidationError(`❌ ${errorMsg}`)
+                if (onError) {
+                  onError(errorMsg)
+                }
+              }
+            } else {
+              // No result info, just reset
+              setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
+              setValidationError(null)
+              setLogs([])
+            }
           }
         }
       } catch (e) {
