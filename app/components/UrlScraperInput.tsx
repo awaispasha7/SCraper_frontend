@@ -47,12 +47,60 @@ export default function UrlScraperInput({
   const [isValidating, setIsValidating] = useState(false)
   const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; type: string }>>([])
   const [showStopConfirmModal, setShowStopConfirmModal] = useState(false)
+  const [hasCheckedInitialStatus, setHasCheckedInitialStatus] = useState(false)
+
+  // Check initial status on mount to restore state if scraper is already running
+  useEffect(() => {
+    if (hasCheckedInitialStatus) return
+
+    const checkInitialStatus = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          
+          // Check all platforms to see if any scraper is running
+          for (const [platform, statusKey] of Object.entries(PLATFORM_TO_STATUS_KEY)) {
+            const apiStatus = data[statusKey]
+            const isBackendRunning = apiStatus?.status === 'running'
+            
+            if (isBackendRunning) {
+              // Found a running scraper - restore state
+              setScrapeStatus({
+                status: 'running',
+                message: `Scraper is running for ${getPlatformDisplayName(platform)}`,
+                platform: platform
+              })
+              setHasCheckedInitialStatus(true)
+              
+              // Fetch initial logs
+              const logsRes = await fetch(`${BACKEND_URL}/api/logs?scraper=${statusKey}&limit=100`, { cache: 'no-store' })
+              if (logsRes.ok) {
+                const logsData = await logsRes.json()
+                setLogs(logsData.logs || [])
+              }
+              
+              // Only restore the first running scraper found
+              break
+            }
+          }
+        }
+      } catch (e) {
+        console.error('[UrlScraperInput] Error checking initial status:', e)
+      } finally {
+        setHasCheckedInitialStatus(true)
+      }
+    }
+
+    checkInitialStatus()
+  }, [hasCheckedInitialStatus])
 
   // Poll backend status and logs when scraper is running
   useEffect(() => {
     if (scrapeStatus.status !== 'running' || !scrapeStatus.platform) {
-      // Clear logs when scraper is not running
-      if (scrapeStatus.status !== 'running') {
+      // Only clear logs when scraper is not running AND we've checked initial status
+      // This prevents clearing logs during initial state restoration
+      if (scrapeStatus.status !== 'running' && hasCheckedInitialStatus) {
         setLogs([])
       }
       return
@@ -139,7 +187,7 @@ export default function UrlScraperInput({
     fetchLogs()
 
     return () => clearInterval(interval)
-  }, [scrapeStatus.status, scrapeStatus.platform])
+  }, [scrapeStatus.status, scrapeStatus.platform, hasCheckedInitialStatus, url])
 
   // Ref to track validation timeout
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
