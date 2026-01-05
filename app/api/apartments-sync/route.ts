@@ -44,7 +44,7 @@ export async function POST() {
           const { supabase } = await import('@/lib/supabase')
           if (supabase) {
             const { count, error: countError } = await supabase
-              .from('apartments_frbo_chicago')
+              .from('apartments_frbo')
               .select('*', { count: 'exact', head: true })
             
             totalCount = countError ? 0 : (count || 0)
@@ -130,7 +130,7 @@ export async function POST() {
         const { supabase } = await import('@/lib/supabase')
         if (supabase) {
           const { count, error: countError } = await supabase
-            .from('apartments_frbo_chicago')
+            .from('apartments_frbo')
             .select('*', { count: 'exact', head: true })
           
           const totalCount = countError ? 0 : (count || 0)

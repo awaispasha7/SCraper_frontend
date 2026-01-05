@@ -712,14 +712,14 @@ export async function GET(request: NextRequest) {
       const dbClient = supabaseAdmin || supabase
       if (dbClient) {
         try {
-          console.log('📥 Checking Supabase apartments_frbo_chicago table for owner data...')
+          console.log('📥 Checking Supabase apartments_frbo table for owner data...')
 
           let apartmentListing: any = null
 
           if (listingLink) {
             // Try to match by listing_url first (most reliable)
             const { data: linkMatch, error: linkError } = await dbClient
-              .from('apartments_frbo_chicago')
+              .from('apartments_frbo')
               .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
               .eq('listing_url', listingLink)
               .maybeSingle()
@@ -734,7 +734,7 @@ export async function GET(request: NextRequest) {
           if (!apartmentListing && address) {
             // Try full_address first
             const { data: fullAddrMatch, error: fullAddrError } = await dbClient
-              .from('apartments_frbo_chicago')
+              .from('apartments_frbo')
               .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
               .ilike('full_address', `%${address}%`)
               .maybeSingle()
@@ -745,7 +745,7 @@ export async function GET(request: NextRequest) {
             } else {
               // Try title
               const { data: titleMatch, error: titleError } = await dbClient
-                .from('apartments_frbo_chicago')
+                .from('apartments_frbo')
                 .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
                 .ilike('title', `%${address}%`)
                 .maybeSingle()
@@ -767,7 +767,7 @@ export async function GET(request: NextRequest) {
 
             if (streetNumber) {
               const { data: flexibleMatch, error: flexibleError } = await dbClient
-                .from('apartments_frbo_chicago')
+                .from('apartments_frbo')
                 .select('owner_name, owner_email, phone_numbers, full_address, title, listing_url')
                 .ilike('full_address', `%${streetNumber}%`)
                 .limit(10)
@@ -851,7 +851,7 @@ export async function GET(request: NextRequest) {
 
             return NextResponse.json({
               ownerName: apartmentListing.owner_name && apartmentListing.owner_name !== 'null' ? apartmentListing.owner_name : null,
-              mailingAddress: null, // Not available in apartments_frbo_chicago table
+              mailingAddress: null, // Not available in apartments_frbo table
               email: allEmails.length > 0 ? allEmails[0] : null,
               phone: allPhones.length > 0 ? allPhones[0] : null,
               allEmails: allEmails,

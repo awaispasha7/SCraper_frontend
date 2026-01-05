@@ -14,7 +14,7 @@ export async function GET() {
         // Fetch Apartments listings from Supabase
         console.log('📥 Fetching Apartments listings from Supabase...')
         const { data: listings, error } = await dbClient
-          .from('apartments_frbo_chicago')
+          .from('apartments_frbo')
           .select('*')
           .order('id', { ascending: true })
 

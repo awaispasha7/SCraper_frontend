@@ -365,7 +365,7 @@ export async function refreshApartmentsListings(): Promise<{
     
     if (supabase) {
       const { count, error: countError } = await supabase
-        .from('apartments_frbo_chicago')
+        .from('apartments_frbo')
         .select('*', { count: 'exact', head: true })
       
       if (!countError && count !== null) {

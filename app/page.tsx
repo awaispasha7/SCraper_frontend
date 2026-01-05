@@ -6,6 +6,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase-client'
 import ConsoleViewer from './components/ConsoleViewer'
+import UrlScraperInput from './components/UrlScraperInput'
 
 interface ScraperCard {
   href: string
@@ -481,6 +482,29 @@ export default function HomePage() {
           </div>
         </div>
       </header>
+
+      {/* Universal URL Scraper Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-gray-100 mb-6">
+          <div className="px-6 sm:px-8 py-6 border-b border-gray-50">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">Universal URL Scraper</h2>
+            <p className="text-sm text-gray-500 font-medium mt-1">Paste any property listing URL to automatically detect and scrape</p>
+          </div>
+          <div className="p-6 sm:p-8">
+            <UrlScraperInput
+              placeholder="https://www.apartments.com/chicago-il/for-rent-by-owner/ or any other platform URL..."
+              onSuccess={(platform, url) => {
+                setToast({ message: `✅ Scraper started for ${platform}`, type: 'success' })
+                setTimeout(() => setToast(null), 5000)
+              }}
+              onError={(error) => {
+                setToast({ message: `❌ ${error}`, type: 'error' })
+                setTimeout(() => setToast(null), 5000)
+              }}
+            />
+          </div>
+        </div>
+      </div>
 
       {/* Stats Section */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

@@ -6,7 +6,9 @@ import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
 import ScraperRunButton from '@/app/components/ScraperRunButton'
 import EnrichmentBadge from '@/app/components/EnrichmentBadge'
+import UrlScraperInput from '@/app/components/UrlScraperInput'
 import { createClient } from '@/lib/supabase-client'
+import { getDefaultUrlForPlatform } from '@/lib/url-validation'
 
 interface ApartmentListing {
   id: number
@@ -560,6 +562,35 @@ function ApartmentsPageContent() {
                   <span>Logout</span>
                 </button>
               </div>
+            </div>
+          </div>
+          
+          {/* URL Scraper Input Section */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="bg-cyan-50 rounded-xl p-4 border border-cyan-200">
+              <h3 className="text-lg font-semibold text-cyan-900 mb-2">Scrape from URL</h3>
+              <p className="text-sm text-cyan-700 mb-4">Enter an Apartments.com URL to scrape a specific location or listing</p>
+              <UrlScraperInput
+                defaultUrl={getDefaultUrlForPlatform('apartments.com')}
+                expectedPlatform="apartments.com"
+                showDefaultValue={true}
+                placeholder="https://www.apartments.com/chicago-il/for-rent-by-owner/"
+                onSuccess={(platform, url) => {
+                  setSyncProgress(`✅ Scraper started for ${platform}. Scraping ${url}...`)
+                  setIsSyncing(true)
+                  // Start polling for updates
+                  const pollInterval = pollForListings(3000, 120)
+                  setTimeout(() => {
+                    clearInterval(pollInterval)
+                    setIsSyncing(false)
+                    setSyncProgress('')
+                  }, 360000) // 6 minutes
+                }}
+                onError={(error) => {
+                  setSyncProgress(`❌ ${error}`)
+                  setTimeout(() => setSyncProgress(''), 5000)
+                }}
+              />
             </div>
           </div>
         </div>
