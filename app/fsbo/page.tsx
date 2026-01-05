@@ -580,12 +580,8 @@ function DashboardContent() {
 
       setSyncProgress(`✅ Scraper started! Scraping ${defaultUrl}...`)
       setIsSyncing(true)
-      const pollInterval = pollForListings(3000, 120)
-      setTimeout(() => {
-        clearInterval(pollInterval)
-        setIsSyncing(false)
-        setSyncProgress('')
-      }, 360000) // 6 minutes
+      pollForListings(3000, 120)
+      // Note: pollForListings now checks backend status and stops automatically when scraper finishes
     } catch (error: any) {
       const errorMsg = error.message || 'Failed to start scraper'
       setSyncProgress(`❌ ${errorMsg}`)
@@ -602,6 +598,38 @@ function DashboardContent() {
     let lastCount = 0
     const pollInterval = setInterval(async () => {
       attempts++
+      
+      // Check if scraper is still running
+      try {
+        const statusRes = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+        if (statusRes.ok) {
+          const statusData = await statusRes.json()
+          const fsboStatus = statusData.fsbo
+          const isScraperRunning = fsboStatus?.status === 'running'
+          
+          // If scraper finished, stop polling and clear status
+          if (!isScraperRunning) {
+            clearInterval(pollInterval)
+            setIsSyncing(false)
+            const lastResult = fsboStatus?.last_result
+            if (lastResult?.success) {
+              setSyncProgress(`✅ Scraping completed successfully!`)
+              // Final fetch to get latest data
+              await fetchListings()
+            } else if (lastResult?.error) {
+              setSyncProgress(`❌ Scraping failed: ${lastResult.error}`)
+            } else {
+              setSyncProgress('')
+            }
+            // Clear progress message after 5 seconds
+            setTimeout(() => setSyncProgress(''), 5000)
+            return
+          }
+        }
+      } catch (statusErr) {
+        // Continue polling even if status check fails
+      }
+      
       try {
         const response = await fetch('/api/listings?' + new Date().getTime(), {
           cache: 'no-store',
@@ -647,6 +675,8 @@ function DashboardContent() {
 
       if (attempts >= maxAttempts) {
         clearInterval(pollInterval)
+        setIsSyncing(false)
+        setSyncProgress('')
       }
     }, interval) // Increased to 3 seconds during sync to reduce lag
 
@@ -1174,12 +1204,8 @@ function DashboardContent() {
                 onSuccess={(platform, url) => {
                   setSyncProgress(`✅ Scraper started for ${platform}. Scraping ${url}...`)
                   setIsSyncing(true)
-                  const pollInterval = pollForListings(3000, 120)
-                  setTimeout(() => {
-                    clearInterval(pollInterval)
-                    setIsSyncing(false)
-                    setSyncProgress('')
-                  }, 360000)
+                  pollForListings(3000, 120)
+                  // Note: pollForListings now checks backend status and stops automatically when scraper finishes
                 }}
                 onError={(error) => {
                   setSyncProgress(`❌ ${error}`)

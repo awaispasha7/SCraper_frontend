@@ -334,7 +334,7 @@ export default function UrlScraperInput({
   return (
     <div className={className}>
       <div className="relative">
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
           <div className="flex-1 relative">
             <input
               type="text"
@@ -343,7 +343,7 @@ export default function UrlScraperInput({
               onBlur={handleBlur}
               placeholder={placeholder}
               className={`
-                w-full px-4 py-3 pr-10 border-2 rounded-lg
+                w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-10 text-sm sm:text-base border-2 rounded-lg
                 focus:outline-none focus:ring-2 focus:ring-offset-0
                 transition-all duration-200
                 ${getStatusColor()}
@@ -353,58 +353,61 @@ export default function UrlScraperInput({
               disabled={scrapeStatus.status === 'running' || isValidating}
             />
             {scrapeStatus.status !== 'idle' && (
-              <div className="absolute right-3 top-1/2 -translate-y-1/2">
+              <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2">
                 {getStatusIcon()}
               </div>
             )}
             {showDefaultValue && defaultUrl && !url && (
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">
+              <div className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs sm:text-sm pointer-events-none max-w-[calc(100%-80px)] truncate">
                 Default: {defaultUrl}
               </div>
             )}
           </div>
-          <div className="flex gap-2">
-            {scrapeStatus.status === 'running' ? (
-              <button
-                onClick={handleStopScraper}
-                className="px-6 py-3 rounded-lg font-semibold bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-              >
-                <span className="flex items-center gap-2">
-                  <span>🛑</span>
-                  <span>Stop Scraper</span>
+          {scrapeStatus.status === 'running' ? (
+            <button
+              onClick={handleStopScraper}
+              className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200 whitespace-nowrap"
+            >
+              <span className="flex items-center justify-center gap-2">
+                <span>🛑</span>
+                <span className="hidden sm:inline">Stop Scraper</span>
+                <span className="sm:hidden">Stop</span>
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={handleScrape}
+              disabled={!url.trim() || isValidating || scrapeStatus.status === 'starting'}
+              className={`
+                px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base
+                transition-all duration-200 whitespace-nowrap
+                disabled:opacity-50 disabled:cursor-not-allowed
+                ${scrapeStatus.status === 'starting'
+                  ? 'bg-blue-600 text-white cursor-wait'
+                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
+                }
+              `}
+            >
+              {scrapeStatus.status === 'starting' ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-spin">⏳</span>
+                  <span className="hidden sm:inline">Starting...</span>
+                  <span className="sm:hidden">Starting</span>
                 </span>
-              </button>
-            ) : (
-              <button
-                onClick={handleScrape}
-                disabled={!url.trim() || isValidating || scrapeStatus.status === 'starting'}
-                className={`
-                  px-6 py-3 rounded-lg font-semibold
-                  transition-all duration-200
-                  disabled:opacity-50 disabled:cursor-not-allowed
-                  ${scrapeStatus.status === 'starting'
-                    ? 'bg-blue-600 text-white cursor-wait'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
-                  }
-                `}
-              >
-                {scrapeStatus.status === 'starting' ? (
-                  <span className="flex items-center gap-2">
-                    <span className="animate-spin">⏳</span>
-                    Starting...
-                  </span>
-                ) : (
-                  'Start Scraping'
-                )}
-              </button>
-            )}
-          </div>
+              ) : (
+                <>
+                  <span className="hidden sm:inline">Start Scraping</span>
+                  <span className="sm:hidden">Start</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
 
         {/* Status Message (exclude error status - errors shown separately) */}
         {scrapeStatus.message && scrapeStatus.status !== 'idle' && scrapeStatus.status !== 'error' && (
           <div className={`
-            mt-2 px-4 py-2 rounded-lg text-sm animate-in fade-in slide-in-from-top-2
+            mt-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm animate-in fade-in slide-in-from-top-2
             ${scrapeStatus.status === 'success'
               ? 'bg-green-50 text-green-700 border border-green-200'
               : 'bg-blue-50 text-blue-700 border border-blue-200'
@@ -412,26 +415,26 @@ export default function UrlScraperInput({
           `}>
             <div className="flex items-center gap-2">
               {getStatusIcon()}
-              <span>{scrapeStatus.message}</span>
+              <span className="break-words">{scrapeStatus.message}</span>
             </div>
           </div>
         )}
 
         {/* Validation Error */}
         {validationError && (
-          <div className="mt-2 px-4 py-2 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200 animate-in fade-in slide-in-from-top-2">
+          <div className="mt-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm bg-red-50 text-red-700 border border-red-200 animate-in fade-in slide-in-from-top-2">
             <div className="flex items-start gap-2">
-              <svg className="w-5 h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+              <svg className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
               </svg>
-              <span>{validationError}</span>
+              <span className="break-words flex-1">{validationError}</span>
             </div>
           </div>
         )}
 
         {/* Platform Detection Hint */}
         {scrapeStatus.status === 'idle' && scrapeStatus.platform && !validationError && (
-          <div className="mt-2 px-4 py-2 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
+          <div className="mt-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm bg-blue-50 text-blue-700 border border-blue-200">
             <span className="font-medium">Platform detected:</span> {getPlatformDisplayName(scrapeStatus.platform)}
           </div>
         )}
@@ -439,14 +442,14 @@ export default function UrlScraperInput({
         {/* Log Viewer - Show when scraper is running (show even if empty to indicate polling) */}
         {scrapeStatus.status === 'running' && (
           <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-semibold text-gray-700">Scraper Logs</h4>
+            <div className="flex items-center justify-between mb-2 flex-wrap gap-1">
+              <h4 className="text-xs sm:text-sm font-semibold text-gray-700">Scraper Logs</h4>
               <span className="text-xs text-gray-500">{logs.length} log entries</span>
             </div>
-            <div className="bg-gray-900 rounded-lg p-4 border border-gray-700" style={{ maxHeight: '300px', overflowY: 'auto' }}>
-              <div className="font-mono text-xs space-y-1">
+            <div className="bg-gray-900 rounded-lg p-2 sm:p-4 border border-gray-700" style={{ maxHeight: '250px', overflowY: 'auto' }}>
+              <div className="font-mono text-[10px] sm:text-xs space-y-0.5 sm:space-y-1">
                 {logs.length === 0 ? (
-                  <div className="text-gray-500 italic">Waiting for logs...</div>
+                  <div className="text-gray-500 italic text-xs sm:text-sm">Waiting for logs...</div>
                 ) : (
                   logs.map((log, index) => {
                   const logType = log.type || 'info'
@@ -462,9 +465,9 @@ export default function UrlScraperInput({
                   const timestamp = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''
                   
                   return (
-                    <div key={index} className={`${color} flex gap-2`}>
-                      <span className="text-gray-500 flex-shrink-0">{timestamp}</span>
-                      <span className="flex-1 break-words">{log.message}</span>
+                    <div key={index} className={`${color} flex gap-1 sm:gap-2 flex-wrap sm:flex-nowrap`}>
+                      <span className="text-gray-500 flex-shrink-0 text-[10px] sm:text-xs">{timestamp}</span>
+                      <span className="flex-1 break-words min-w-0">{log.message}</span>
                     </div>
                   )
                   })
