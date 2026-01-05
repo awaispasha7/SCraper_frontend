@@ -1,9 +1,20 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { validateAndDetectPlatform, getPlatformDisplayName, validateUrlFormat } from '@/lib/url-validation'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
+
+// Map platform names from URL detector to backend status keys
+const PLATFORM_TO_STATUS_KEY: Record<string, string> = {
+  'apartments.com': 'apartments',
+  'hotpads': 'hotpads',
+  'redfin': 'redfin',
+  'trulia': 'trulia',
+  'zillow_fsbo': 'zillow_fsbo',
+  'zillow_frbo': 'zillow_frbo',
+  'fsbo': 'fsbo'
+}
 
 interface UrlScraperInputProps {
   defaultUrl?: string
@@ -34,6 +45,64 @@ export default function UrlScraperInput({
   const [scrapeStatus, setScrapeStatus] = useState<ScrapeStatus>({ status: 'idle', message: '' })
   const [validationError, setValidationError] = useState<string | null>(null)
   const [isValidating, setIsValidating] = useState(false)
+  const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; type: string }>>([])
+
+  // Poll backend status and logs when scraper is running
+  useEffect(() => {
+    if (scrapeStatus.status !== 'running' || !scrapeStatus.platform) {
+      // Clear logs when scraper is not running
+      if (scrapeStatus.status !== 'running') {
+        setLogs([])
+      }
+      return
+    }
+
+    const statusKey = PLATFORM_TO_STATUS_KEY[scrapeStatus.platform]
+    if (!statusKey) return
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          const apiStatus = data[statusKey]
+          const isBackendRunning = apiStatus?.status === 'running'
+
+          // If backend says scraper is no longer running, reset status
+          if (!isBackendRunning) {
+            setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
+            setValidationError(null)
+            setLogs([])
+          }
+        }
+      } catch (e) {
+        // Ignore polling errors - don't reset status if we can't check
+      }
+    }
+
+    const fetchLogs = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/logs?scraper=${statusKey}&limit=100`, { cache: 'no-store' })
+        if (res.ok) {
+          const data = await res.json()
+          setLogs(data.logs || [])
+        }
+      } catch (e) {
+        // Ignore log fetch errors
+      }
+    }
+
+    // Poll status and logs every 2 seconds while scraper is running
+    const interval = setInterval(() => {
+      pollStatus()
+      fetchLogs()
+    }, 2000)
+    // Initial poll
+    pollStatus()
+    fetchLogs()
+
+    return () => clearInterval(interval)
+  }, [scrapeStatus.status, scrapeStatus.platform])
 
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newUrl = e.target.value
@@ -132,10 +201,8 @@ export default function UrlScraperInput({
         onSuccess(data.platform, trimmedUrl)
       }
 
-      // Reset status after 5 seconds (only if successfully started)
-      setTimeout(() => {
-        setScrapeStatus({ status: 'idle', message: '' })
-      }, 5000)
+      // Don't auto-reset status - let it stay as 'running' so button stays disabled
+      // The parent component or user interaction can reset it when appropriate
     } catch (error: any) {
       const errorMsg = error.message || 'Failed to start scraper'
       setScrapeStatus({ status: 'error', message: errorMsg })
@@ -288,9 +355,43 @@ export default function UrlScraperInput({
         )}
 
         {/* Platform Detection Hint */}
-        {scrapeStatus.status === 'idle' && scrapeStatus.platform && (
+        {scrapeStatus.status === 'idle' && scrapeStatus.platform && !validationError && (
           <div className="mt-2 px-4 py-2 rounded-lg text-sm bg-blue-50 text-blue-700 border border-blue-200">
             <span className="font-medium">Platform detected:</span> {getPlatformDisplayName(scrapeStatus.platform)}
+          </div>
+        )}
+
+        {/* Log Viewer - Show when scraper is running */}
+        {scrapeStatus.status === 'running' && logs.length > 0 && (
+          <div className="mt-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-semibold text-gray-700">Scraper Logs</h4>
+              <span className="text-xs text-gray-500">{logs.length} log entries</span>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-4 border border-gray-700" style={{ maxHeight: '300px', overflowY: 'auto' }}>
+              <div className="font-mono text-xs space-y-1">
+                {logs.map((log, index) => {
+                  const logType = log.type || 'info'
+                  const typeColors: Record<string, string> = {
+                    info: 'text-gray-300',
+                    error: 'text-red-400',
+                    success: 'text-green-400',
+                    warning: 'text-yellow-400'
+                  }
+                  const color = typeColors[logType] || 'text-gray-300'
+                  
+                  // Format timestamp (show only time part for readability)
+                  const timestamp = log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : ''
+                  
+                  return (
+                    <div key={index} className={`${color} flex gap-2`}>
+                      <span className="text-gray-500 flex-shrink-0">{timestamp}</span>
+                      <span className="flex-1 break-words">{log.message}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
           </div>
         )}
       </div>
