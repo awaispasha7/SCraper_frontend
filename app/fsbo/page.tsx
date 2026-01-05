@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useRef, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
-import ScraperRunButton from '@/app/components/ScraperRunButton'
 import UrlScraperInput from '@/app/components/UrlScraperInput'
 import { getDefaultUrlForPlatform } from '@/lib/url-validation'
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
 
 interface Listing {
   address: string
@@ -70,6 +71,7 @@ function DashboardContent() {
   const listingsPerPage = 20 // Listings per page
   const [syncProgress, setSyncProgress] = useState<string>('') // Progress message during sync
   const [isSyncing, setIsSyncing] = useState(false) // Track if sync is in progress
+  const [isStartingScraper, setIsStartingScraper] = useState(false) // Track if scraper is starting
   const [searchQuery, setSearchQuery] = useState('') // Search query for filtering listings
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false) // Show welcome message after login
   const [previousUrls, setPreviousUrls] = useState<Set<string>>(() => {
@@ -546,6 +548,50 @@ function DashboardContent() {
       console.error('Error fetching listings:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  // Handle starting scraper with default URL
+  const handleStartScrapingWithDefault = async () => {
+    const defaultUrl = getDefaultUrlForPlatform('fsbo')
+    if (!defaultUrl) {
+      setSyncProgress('❌ No default URL configured')
+      setTimeout(() => setSyncProgress(''), 5000)
+      return
+    }
+
+    setIsStartingScraper(true)
+    setSyncProgress(`🚀 Starting scraper with default URL...`)
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/trigger-from-url`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ url: defaultUrl }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to start scraper')
+      }
+
+      setSyncProgress(`✅ Scraper started! Scraping ${defaultUrl}...`)
+      setIsSyncing(true)
+      const pollInterval = pollForListings(3000, 120)
+      setTimeout(() => {
+        clearInterval(pollInterval)
+        setIsSyncing(false)
+        setSyncProgress('')
+      }, 360000) // 6 minutes
+    } catch (error: any) {
+      const errorMsg = error.message || 'Failed to start scraper'
+      setSyncProgress(`❌ ${errorMsg}`)
+      setTimeout(() => setSyncProgress(''), 5000)
+    } finally {
+      setIsStartingScraper(false)
     }
   }
 
@@ -1093,12 +1139,24 @@ function DashboardContent() {
                   <span className="sm:hidden">Updated!</span>
                 </div>
               )}
-              <ScraperRunButton
-                scraperId="fsbo"
-                scraperName="FSBO"
-                endpoint="/api/trigger"
-                color="blue"
-              />
+              <div className="relative group">
+                <button
+                  onClick={handleStartScrapingWithDefault}
+                  disabled={isStartingScraper || isSyncing}
+                  className="bg-blue-600 text-white px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-700 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
+                >
+                  <span className="text-base sm:text-lg">
+                    {isStartingScraper ? '⏳' : '▶️'}
+                  </span>
+                  <span className="hidden sm:inline">{isStartingScraper ? 'Starting...' : 'Start Scraping'}</span>
+                  <span className="sm:hidden">{isStartingScraper ? 'Starting...' : 'Start'}</span>
+                </button>
+                {/* Tooltip on hover */}
+                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-50 max-w-xs truncate">
+                  {getDefaultUrlForPlatform('fsbo')}
+                  <div className="absolute top-full left-1/2 transform -translate-x-1/2 border-4 border-transparent border-t-gray-900"></div>
+                </div>
+              </div>
               <button
                 onClick={handleRefresh}
                 disabled={loading}
