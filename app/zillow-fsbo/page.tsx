@@ -6,6 +6,8 @@ import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
 import ScraperRunButton from '@/app/components/ScraperRunButton'
 import EnrichmentBadge from '@/app/components/EnrichmentBadge'
+import UrlScraperInput from '@/app/components/UrlScraperInput'
+import { getDefaultUrlForPlatform } from '@/lib/url-validation'
 import { createClient } from '@/lib/supabase-client'
 
 interface ZillowFSBOListing {
@@ -548,7 +550,26 @@ function ZillowFSBOPageContent() {
                 </button>
               </div>
             </div>
-
+          </div>
+          
+          {/* URL Scraper Input Section */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="bg-purple-50 rounded-xl p-4 border border-purple-200">
+              <h3 className="text-lg font-semibold text-purple-900 mb-2">Scrape from URL</h3>
+              <p className="text-sm text-purple-700 mb-4">Enter a Zillow FSBO URL to scrape a specific location</p>
+              <UrlScraperInput
+                defaultUrl={getDefaultUrlForPlatform('zillow_fsbo')}
+                expectedPlatform="zillow_fsbo"
+                showDefaultValue={true}
+                placeholder="https://www.zillow.com/homes/for_sale/"
+                onSuccess={(platform, url) => {
+                  fetchListings()
+                }}
+                onError={(error) => {
+                  console.error('URL validation error:', error)
+                }}
+              />
+            </div>
           </div>
         </div>
       </header>

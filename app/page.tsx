@@ -229,10 +229,28 @@ export default function HomePage() {
         const statusRes = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
         if (statusRes.ok) {
           const statusData = await statusRes.json()
-          const finishedAt = statusData.all_scrapers?.finished_at
-          if (finishedAt) {
-            const scrapeDate = new Date(finishedAt)
-            setLastScrapeTime(scrapeDate.toLocaleString('en-US', {
+          
+          // Get the most recent last_run from any individual scraper
+          // (all_scrapers.finished_at is only set when running all scrapers sequentially)
+          const scraperLastRuns = [
+            statusData.fsbo?.last_run,
+            statusData.apartments?.last_run,
+            statusData.zillow_fsbo?.last_run,
+            statusData.zillow_frbo?.last_run,
+            statusData.hotpads?.last_run,
+            statusData.redfin?.last_run,
+            statusData.trulia?.last_run,
+            statusData.all_scrapers?.finished_at
+          ].filter(Boolean) // Remove null/undefined values
+          
+          if (scraperLastRuns.length > 0) {
+            // Sort dates descending and take the most recent
+            const sortedDates = scraperLastRuns
+              .map(dateStr => new Date(dateStr))
+              .sort((a, b) => b.getTime() - a.getTime())
+            
+            const mostRecent = sortedDates[0]
+            setLastScrapeTime(mostRecent.toLocaleString('en-US', {
               year: 'numeric',
               month: 'short',
               day: 'numeric',

@@ -3,6 +3,8 @@
 import { useEffect, useState, useRef, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import ScraperRunButton from '@/app/components/ScraperRunButton'
+import UrlScraperInput from '@/app/components/UrlScraperInput'
+import { getDefaultUrlForPlatform } from '@/lib/url-validation'
 
 interface Listing {
   address: string
@@ -1113,6 +1115,33 @@ function DashboardContent() {
                 <span className="hidden sm:inline">Logout</span>
                 <span className="sm:hidden">Logout</span>
               </button>
+            </div>
+          </div>
+          
+          {/* URL Scraper Input Section */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="bg-blue-50 rounded-xl p-4 border border-blue-200">
+              <h3 className="text-lg font-semibold text-blue-900 mb-2">Scrape from URL</h3>
+              <p className="text-sm text-blue-700 mb-4">Enter a ForSaleByOwner.com URL to scrape a specific location</p>
+              <UrlScraperInput
+                expectedPlatform="fsbo"
+                showDefaultValue={true}
+                placeholder="https://www.forsalebyowner.com/search/list/chicago-illinois"
+                onSuccess={(platform, url) => {
+                  setSyncProgress(`✅ Scraper started for ${platform}. Scraping ${url}...`)
+                  setIsSyncing(true)
+                  const pollInterval = pollForListings(3000, 120)
+                  setTimeout(() => {
+                    clearInterval(pollInterval)
+                    setIsSyncing(false)
+                    setSyncProgress('')
+                  }, 360000)
+                }}
+                onError={(error) => {
+                  setSyncProgress(`❌ ${error}`)
+                  setTimeout(() => setSyncProgress(''), 5000)
+                }}
+              />
             </div>
           </div>
         </div>
