@@ -184,7 +184,41 @@ export function getAvailablePlatforms(): Array<{ value: string; label: string }>
 }
 
 /**
- * Build URL from platform and location
+ * Search platform for location and get the actual listing URL
+ */
+export async function searchLocationOnPlatform(
+  platform: string,
+  location: string
+): Promise<{ url: string; platform: string; location: any } | null> {
+  if (!platform || !location || !location.trim()) {
+    return null
+  }
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api/search-location`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ platform, location: location.trim() }),
+    })
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}))
+      throw new Error(errorData.error || `Failed to search location: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+    return data
+  } catch (error: any) {
+    console.error('[searchLocationOnPlatform] Error:', error)
+    throw error
+  }
+}
+
+/**
+ * Build URL from platform and location (DEPRECATED - use searchLocationOnPlatform instead)
+ * Kept for backwards compatibility
  */
 export function buildUrlFromPlatformAndLocation(platform: string, location: string): string | null {
   if (!platform || !location || !location.trim()) {

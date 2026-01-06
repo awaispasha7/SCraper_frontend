@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { validateAndDetectPlatform, getPlatformDisplayName, validateUrlFormat, getAvailablePlatforms, buildUrlFromPlatformAndLocation } from '@/lib/url-validation'
+import { validateAndDetectPlatform, getPlatformDisplayName, validateUrlFormat, getAvailablePlatforms, searchLocationOnPlatform } from '@/lib/url-validation'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
 
@@ -300,14 +300,41 @@ export default function UrlScraperInput({
         setValidationError('Please select a platform and enter a location')
         return
       }
-      const builtUrl = buildUrlFromPlatformAndLocation(selectedPlatform, locationInput.trim())
-      if (!builtUrl) {
-        setValidationError('Failed to build URL. Please check your inputs.')
+      
+      // Search the platform for the location to get the actual listing URL
+      setScrapeStatus({ status: 'validating', message: `Searching ${getPlatformDisplayName(selectedPlatform)} for "${locationInput.trim()}"...` })
+      setIsValidating(true)
+      
+      try {
+        const searchResult = await searchLocationOnPlatform(selectedPlatform, locationInput.trim())
+        
+        if (!searchResult || !searchResult.url) {
+          setValidationError(`Could not find listing URL for "${locationInput.trim()}" on ${getPlatformDisplayName(selectedPlatform)}. Please try a different location or paste a URL directly.`)
+          setScrapeStatus({ status: 'error', message: 'Location search failed' })
+          setIsValidating(false)
+          return
+        }
+        
+        trimmedUrl = searchResult.url
+        // Update the URL state for display purposes
+        setUrl(trimmedUrl)
+        // Update platform if detected
+        if (searchResult.platform) {
+          setScrapeStatus({ 
+            status: 'idle', 
+            message: `Found: ${getPlatformDisplayName(searchResult.platform)}`,
+            platform: searchResult.platform
+          })
+        }
+      } catch (error: any) {
+        const errorMsg = error.message || 'Failed to search location'
+        setValidationError(errorMsg)
+        setScrapeStatus({ status: 'error', message: errorMsg })
+        setIsValidating(false)
         return
+      } finally {
+        setIsValidating(false)
       }
-      trimmedUrl = builtUrl
-      // Update the URL state for display purposes
-      setUrl(trimmedUrl)
     } else {
       trimmedUrl = url.trim()
     }
