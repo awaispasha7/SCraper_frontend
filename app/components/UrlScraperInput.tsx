@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { validateAndDetectPlatform, getPlatformDisplayName, validateUrlFormat } from '@/lib/url-validation'
+import { validateAndDetectPlatform, getPlatformDisplayName, validateUrlFormat, getAvailablePlatforms, buildUrlFromPlatformAndLocation } from '@/lib/url-validation'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
 
@@ -48,6 +48,11 @@ export default function UrlScraperInput({
   const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; type: string }>>([])
   const [showStopConfirmModal, setShowStopConfirmModal] = useState(false)
   const [hasCheckedInitialStatus, setHasCheckedInitialStatus] = useState(false)
+  
+  // New state for manual input method
+  const [selectedPlatform, setSelectedPlatform] = useState<string>('')
+  const [locationInput, setLocationInput] = useState<string>('')
+  const [inputMethod, setInputMethod] = useState<'manual' | 'url'>('url') // Track which input method is being used
 
   // Check initial status on mount to restore state if scraper is already running
   useEffect(() => {
@@ -192,9 +197,35 @@ export default function UrlScraperInput({
   // Ref to track validation timeout
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
+  // Handle platform selection change
+  const handlePlatformChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    setSelectedPlatform(e.target.value)
+    setInputMethod('manual')
+    setValidationError(null)
+    setScrapeStatus({ status: 'idle', message: '' })
+  }
+
+  // Handle location input change
+  const handleLocationChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setLocationInput(e.target.value)
+    setInputMethod('manual')
+    setValidationError(null)
+    setScrapeStatus({ status: 'idle', message: '' })
+  }
+
+  // Determine if we can start scraping
+  const canStartScraping = (): boolean => {
+    if (inputMethod === 'manual') {
+      return !!(selectedPlatform && locationInput.trim())
+    } else {
+      return !!url.trim()
+    }
+  }
+
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const newUrl = e.target.value
     setUrl(newUrl)
+    setInputMethod('url')
     setValidationError(null)
     if (scrapeStatus.status === 'error') {
       setScrapeStatus({ status: 'idle', message: '' })
@@ -261,7 +292,25 @@ export default function UrlScraperInput({
   }
 
   const handleScrape = async () => {
-    const trimmedUrl = url.trim()
+    // Determine which URL to use
+    let trimmedUrl = ''
+    
+    if (inputMethod === 'manual') {
+      if (!selectedPlatform || !locationInput.trim()) {
+        setValidationError('Please select a platform and enter a location')
+        return
+      }
+      const builtUrl = buildUrlFromPlatformAndLocation(selectedPlatform, locationInput.trim())
+      if (!builtUrl) {
+        setValidationError('Failed to build URL. Please check your inputs.')
+        return
+      }
+      trimmedUrl = builtUrl
+      // Update the URL state for display purposes
+      setUrl(trimmedUrl)
+    } else {
+      trimmedUrl = url.trim()
+    }
 
     // Basic format validation
     const formatCheck = validateUrlFormat(trimmedUrl)
@@ -502,9 +551,63 @@ export default function UrlScraperInput({
   return (
     <div className={className}>
       <div className="relative">
+        {/* Manual Input Method: Platform + Location */}
+        <div className="space-y-3 mb-4">
+          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
+            <div className="flex-1">
+              <label htmlFor="platform-select" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                Platform
+              </label>
+              <select
+                id="platform-select"
+                value={selectedPlatform}
+                onChange={handlePlatformChange}
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                disabled={scrapeStatus.status === 'running' || isValidating}
+              >
+                <option value="">Select Platform</option>
+                {getAvailablePlatforms().map(platform => (
+                  <option key={platform.value} value={platform.value}>
+                    {platform.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="flex-1">
+              <label htmlFor="location-input" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                City/Region/Neighborhood/County/Zip
+              </label>
+              <input
+                id="location-input"
+                type="text"
+                value={locationInput}
+                onChange={handleLocationChange}
+                placeholder="e.g., Chicago IL, 60601, Washington DC"
+                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                disabled={scrapeStatus.status === 'running' || isValidating}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* OR Divider */}
+        <div className="relative my-4 sm:my-6">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-300"></div>
+          </div>
+          <div className="relative flex justify-center text-sm sm:text-base">
+            <span className="px-4 bg-white text-gray-500 font-medium">OR</span>
+          </div>
+        </div>
+
+        {/* URL Input Method */}
         <div className="flex flex-col sm:flex-row gap-2 sm:gap-2">
           <div className="flex-1 relative">
+            <label htmlFor="url-input" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+              Paste any property listing URL to automatically detect and scrape
+            </label>
             <input
+              id="url-input"
               type="text"
               value={url}
               onChange={handleUrlChange}
@@ -521,12 +624,12 @@ export default function UrlScraperInput({
               disabled={scrapeStatus.status === 'running' || isValidating}
             />
             {scrapeStatus.status !== 'idle' && (
-              <div className="absolute right-2 sm:right-3 top-1/2 -translate-y-1/2">
+              <div className="absolute right-2 sm:right-3 top-9 sm:top-10 -translate-y-1/2">
                 {getStatusIcon()}
               </div>
             )}
             {showDefaultValue && defaultUrl && !url && (
-              <div className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-400 text-xs sm:text-sm pointer-events-none max-w-[calc(100%-80px)] truncate">
+              <div className="absolute left-3 sm:left-4 top-9 sm:top-10 -translate-y-1/2 text-gray-400 text-xs sm:text-sm pointer-events-none max-w-[calc(100%-80px)] truncate">
                 Default: {defaultUrl}
               </div>
             )}
@@ -534,7 +637,7 @@ export default function UrlScraperInput({
           {scrapeStatus.status === 'running' ? (
             <button
               onClick={handleStopScraper}
-              className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200 whitespace-nowrap"
+              className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200 whitespace-nowrap self-end"
             >
               <span className="flex items-center justify-center gap-2">
                 <span>🛑</span>
@@ -545,10 +648,10 @@ export default function UrlScraperInput({
           ) : (
             <button
               onClick={handleScrape}
-              disabled={!url.trim() || isValidating || scrapeStatus.status === 'starting'}
+              disabled={!canStartScraping() || isValidating || scrapeStatus.status === 'starting'}
               className={`
                 px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base
-                transition-all duration-200 whitespace-nowrap
+                transition-all duration-200 whitespace-nowrap self-end
                 disabled:opacity-50 disabled:cursor-not-allowed
                 ${scrapeStatus.status === 'starting'
                   ? 'bg-blue-600 text-white cursor-wait'

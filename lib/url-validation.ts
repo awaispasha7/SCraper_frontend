@@ -168,3 +168,50 @@ export function getPlatformDisplayName(platform: string | null): string {
   return names[platform] || platform
 }
 
+/**
+ * Get list of available platforms
+ */
+export function getAvailablePlatforms(): Array<{ value: string; label: string }> {
+  return [
+    { value: 'apartments.com', label: 'Apartments.com' },
+    { value: 'hotpads', label: 'Hotpads' },
+    { value: 'redfin', label: 'Redfin' },
+    { value: 'trulia', label: 'Trulia' },
+    { value: 'zillow_fsbo', label: 'Zillow FSBO' },
+    { value: 'zillow_frbo', label: 'Zillow FRBO' },
+    { value: 'fsbo', label: 'ForSaleByOwner.com' },
+  ]
+}
+
+/**
+ * Build URL from platform and location
+ */
+export function buildUrlFromPlatformAndLocation(platform: string, location: string): string | null {
+  if (!platform || !location || !location.trim()) {
+    return null
+  }
+
+  // Parse location - could be "City State", "City, State", "Zip", "City-State", etc.
+  let locationFormatted = location.trim()
+  
+  // Replace commas with dashes and normalize spaces
+  locationFormatted = locationFormatted.replace(/,/g, '-').replace(/\s+/g, '-').toLowerCase()
+  
+  // Remove any special characters except dashes
+  locationFormatted = locationFormatted.replace(/[^a-z0-9-]/g, '')
+
+  // Basic URL patterns for each platform
+  const urlPatterns: Record<string, string> = {
+    'apartments.com': `https://www.apartments.com/${locationFormatted}/for-rent-by-owner/`,
+    'hotpads': `https://hotpads.com/${locationFormatted}/apartments-for-rent`,
+    'redfin': `https://www.redfin.com/${locationFormatted}/for-sale-by-owner`,
+    // Trulia uses comma-separated format: /for_sale/City,State/
+    'trulia': `https://www.trulia.com/for_sale/${locationFormatted.replace(/-/g, ',')}/SINGLE-FAMILY_HOME_type/`,
+    'zillow_fsbo': `https://www.zillow.com/homes/${locationFormatted}/for_sale/`,
+    'zillow_frbo': `https://www.zillow.com/homes/${locationFormatted}/for_rent/`,
+    'fsbo': `https://www.forsalebyowner.com/search/list/${locationFormatted}`,
+  }
+
+  return urlPatterns[platform] || null
+}
+
