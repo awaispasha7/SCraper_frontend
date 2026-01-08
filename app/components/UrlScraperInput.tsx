@@ -48,6 +48,7 @@ export default function UrlScraperInput({
   const [logs, setLogs] = useState<Array<{ timestamp: string; message: string; type: string }>>([])
   const [showStopConfirmModal, setShowStopConfirmModal] = useState(false)
   const [hasCheckedInitialStatus, setHasCheckedInitialStatus] = useState(false)
+  const [scrapeStartTime, setScrapeStartTime] = useState<Date | null>(null) // Track when current scrape started
   
   // New state for manual input method
   const [selectedPlatform, setSelectedPlatform] = useState<string>('')
@@ -394,6 +395,10 @@ export default function UrlScraperInput({
         platform: data.platform || scrapeStatus.platform
       })
       setValidationError(null)
+      
+      // Clear logs and track when scraping started for this session
+      setLogs([])
+      setScrapeStartTime(new Date())
 
       if (onSuccess && data.platform) {
         onSuccess(data.platform, trimmedUrl)
@@ -409,11 +414,27 @@ export default function UrlScraperInput({
     }
   }
 
-  // Count listings found from logs
+  // Count listings found from logs (only since current scrape started)
   const countListingsFound = (): number => {
     if (logs.length === 0) return 0
     
-    const msg = logs.map(log => log.message.toLowerCase()).join(' ')
+    // Filter logs to only include those after scrape started
+    // If no scrape start time is set, use all logs (backwards compatibility)
+    const relevantLogs = scrapeStartTime 
+      ? logs.filter(log => {
+          try {
+            const logTime = new Date(log.timestamp)
+            return logTime >= scrapeStartTime
+          } catch {
+            // If timestamp parsing fails, include it (better to overcount than undercount)
+            return true
+          }
+        })
+      : logs
+    
+    if (relevantLogs.length === 0) return 0
+    
+    const msg = relevantLogs.map(log => log.message.toLowerCase()).join(' ')
     
     // Patterns to extract listing counts
     const countPatterns = [
@@ -440,8 +461,8 @@ export default function UrlScraperInput({
       }
     }
     
-    // Fallback: Count "SCRAPED:" or "Saved to Supabase" messages in logs
-    const scrapedCount = logs.filter(log => {
+    // Fallback: Count "SCRAPED:" or "Saved to Supabase" messages in relevant logs
+    const scrapedCount = relevantLogs.filter(log => {
       const logMsg = log.message.toLowerCase()
       return logMsg.includes('scraped:') || 
              logMsg.includes('saved to supabase') || 
