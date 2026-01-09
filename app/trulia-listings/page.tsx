@@ -615,27 +615,7 @@ function TruliaListingsPageContent() {
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 lg:gap-4 w-full md:w-auto">
-              <div className="bg-blue-50 rounded-lg px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 border border-blue-200 flex-shrink-0">
-                <div className="text-2xl sm:text-3xl font-bold text-blue-700">{data.total_listings}</div>
-                <div className="text-xs sm:text-sm text-blue-600 font-medium">Total Listings</div>
-              </div>
-              <div className="flex items-center gap-2 sm:gap-3 flex-1 md:flex-initial">
-                <button
-                  onClick={fetchListings}
-                  className="bg-blue-50 text-blue-700 border border-blue-300 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial min-h-[44px]"
-                >
-                  <span className="text-base sm:text-lg">🔄</span>
-                  <span>Refresh</span>
-                </button>
-                <button
-                  onClick={handleLogout}
-                  className="bg-gray-50 text-gray-700 border border-gray-300 px-4 sm:px-5 lg:px-6 py-2.5 sm:py-2.5 lg:py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center justify-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial min-h-[44px]"
-                >
-                  <span>Logout</span>
-                </button>
-              </div>
-            </div>
+            {/* Data Changed Indicator Only - Removed Total Listings, Refresh, and Logout buttons from individual pages */}
           </div>
           
           {/* URL Scraper Input Section */}
@@ -660,8 +640,48 @@ function TruliaListingsPageContent() {
         </div>
       </header>
 
+      {/* Stats Cards */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+          {/* Available Listings Card */}
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="mb-2">
+              <div className="text-3xl sm:text-4xl font-bold text-gray-900">
+                {searchQuery ? filteredListings.length : (data?.total_listings || 0)}
+              </div>
+            </div>
+            <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide">
+              {searchQuery ? 'Filtered Listings' : 'Available Listings'}
+            </div>
+            <div className="text-gray-500 text-xs mt-1 font-medium">
+              {searchQuery ? 'Matching search criteria' : 'Active properties'}
+            </div>
+          </div>
+
+          {/* Last Updated Card */}
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
+            <div className="text-lg sm:text-xl font-bold">
+              {data?.scrape_date ? (() => {
+                const date = new Date(data.scrape_date)
+                return date.toLocaleString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })
+              })() : 'N/A'}
+            </div>
+            <div className="text-gray-500 text-xs mt-1 font-medium">
+              Last scraped date
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Search Bar */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 -mt-2">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             <div className="flex-1 w-full">
@@ -712,52 +732,8 @@ function TruliaListingsPageContent() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {/* Available Listings Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
-            <div className="mb-4">
-              <div className="text-5xl font-bold text-gray-900">
-                {searchQuery ? filteredListings.length : (data?.total_listings || 0)}
-              </div>
-            </div>
-            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide">
-              {searchQuery ? 'Filtered Listings' : 'Available Listings'}
-            </div>
-            <div className="text-gray-500 text-xs mt-2 font-medium">
-              {searchQuery ? 'Matching search criteria' : 'Active properties'}
-            </div>
-          </div>
-
-          {/* Last Updated Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
-            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
-            <div className="text-xl font-bold">
-              {data?.scrape_date ? (() => {
-                const date = new Date(data.scrape_date)
-                return date.toLocaleString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
-              })() : 'N/A'}
-            </div>
-            <div className="text-gray-500 text-xs mt-2 font-medium">
-              Last scraped date
-            </div>
-          </div>
-
-          {/* Status Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
-            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Status</div>
-            <div className="text-xl font-bold text-gray-900">Active</div>
-          </div>
-        </div>
-
-        {/* Listings Grid */}
+      {/* Listings Grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5 lg:gap-6">
           {(() => {
             // Calculate pagination

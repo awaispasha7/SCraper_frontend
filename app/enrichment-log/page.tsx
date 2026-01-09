@@ -190,17 +190,9 @@ export default function EnrichmentLogPage() {
     return (
         <div className="min-h-screen bg-gray-50 pb-12">
             {/* Header */}
-            <nav className="bg-white shadow-sm border-b border-gray-200 mb-8 px-3 sm:px-6 py-4">
-                <div className="max-w-7xl mx-auto flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-                    <div className="flex items-center gap-2 sm:gap-4 w-full lg:w-auto">
-                        <Link href="/" className="text-blue-600 hover:text-blue-700 font-medium flex items-center gap-2 text-sm sm:text-base">
-                            <span>←</span> <span className="hidden sm:inline">Back to Dashboard</span><span className="sm:hidden">Back</span>
-                        </Link>
-                        <h1 className="text-lg sm:text-xl font-bold text-gray-900 border-l border-gray-200 pl-3 sm:pl-4">
-                            Enrichment Activity Log
-                        </h1>
-                    </div>
-                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4 w-full lg:w-auto">
+            <nav className="bg-white shadow-sm border-b border-gray-200 mb-8 py-4">
+                <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 flex flex-col items-center gap-4">
+                    <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
                         <button
                             onClick={triggerEnrichment}
                             disabled={isTriggering || stats?.is_running}
@@ -218,7 +210,7 @@ export default function EnrichmentLogPage() {
                             )}
                         </button>
                         {stats && (
-                            <div className="flex flex-wrap gap-2 text-xs">
+                            <div className="flex flex-wrap gap-2 text-xs justify-center">
                                 <span className="bg-yellow-100 text-yellow-800 px-2 py-1 rounded whitespace-nowrap">Pending: {stats.pending}</span>
                                 <span className="bg-green-100 text-green-800 px-2 py-1 rounded whitespace-nowrap" title="From property_owners table (actual addresses with owner data)">Enriched: {stats.enriched_owners || stats.enriched}</span>
                                 <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded whitespace-nowrap">Skipped: {stats.smart_skipped}</span>
@@ -277,6 +269,7 @@ export default function EnrichmentLogPage() {
                         <table className="w-full text-left border-collapse">
                             <thead>
                                 <tr className="bg-gray-50 border-b border-gray-200">
+                                    <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">#</th>
                                     <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Time</th>
                                     <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Address</th>
                                     <th className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 text-xs font-bold text-gray-500 uppercase tracking-wider">Status</th>
@@ -287,13 +280,16 @@ export default function EnrichmentLogPage() {
                             <tbody className="divide-y divide-gray-100">
                                 {history.length === 0 ? (
                                     <tr>
-                                        <td colSpan={5} className="px-3 sm:px-6 py-12 text-center text-gray-500 text-sm">
+                                        <td colSpan={6} className="px-3 sm:px-6 py-12 text-center text-gray-500 text-sm">
                                             No enrichment history found.
                                         </td>
                                     </tr>
                                 ) : (
                                     filteredHistory.map((item, idx) => (
                                         <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                                            <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-500 font-medium text-center">
+                                                {idx + 1}
+                                            </td>
                                             <td className="px-3 sm:px-4 lg:px-6 py-3 sm:py-4 whitespace-nowrap text-xs sm:text-sm text-gray-600">
                                                 <span className="hidden sm:inline">{formatESTTime(item.checked_at)}</span>
                                                 <span className="sm:hidden">{new Date(item.checked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>

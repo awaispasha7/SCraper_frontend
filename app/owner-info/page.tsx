@@ -283,33 +283,16 @@ function OwnerInfoContent() {
       {/* Header - Light Professional Design */}
       <header className="bg-white shadow-md border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
-              <div className="bg-gray-100 rounded-lg p-2 sm:p-3 lg:p-4 shadow-sm border border-gray-200 flex-shrink-0">
-                <span className="text-2xl sm:text-3xl lg:text-4xl">👤</span>
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-1 sm:mb-2 tracking-tight">
-                  Owner Information
-                </h1>
-                <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Property Owner Details</p>
-              </div>
+          <div className="flex items-center gap-3 sm:gap-4">
+            <div className="bg-gray-100 rounded-lg p-2 sm:p-3 lg:p-4 shadow-sm border border-gray-200 flex-shrink-0">
+              <span className="text-2xl sm:text-3xl lg:text-4xl">👤</span>
             </div>
-            <button
-              onClick={() => {
-                // Store that we're going back to previous page
-                if (typeof window !== 'undefined') {
-                  sessionStorage.setItem('returningFromOwnerInfo', 'true')
-                  // Use window.history.back() to maintain scroll position (like Redfin)
-                  window.history.back()
-                }
-              }}
-              className="bg-gray-50 text-gray-700 border border-gray-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base w-full md:w-auto justify-center md:justify-start"
-            >
-              <span className="text-base sm:text-lg">←</span>
-              <span className="hidden sm:inline">Back to Dashboard</span>
-              <span className="sm:hidden">Back</span>
-            </button>
+            <div className="min-w-0 flex-1">
+              <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-1 sm:mb-2 tracking-tight">
+                Owner Information
+              </h1>
+              <p className="text-gray-600 text-sm sm:text-base lg:text-lg">Property Owner Details</p>
+            </div>
           </div>
         </div>
       </header>

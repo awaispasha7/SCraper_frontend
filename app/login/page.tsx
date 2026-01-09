@@ -82,6 +82,10 @@ export default function LoginPage() {
         throw new Error('Session not established. Please try again.')
       }
 
+      // Check if user is admin (Omar Bucio Brivano)
+      const adminEmail = 'omarbuciofgr@gmail.com'
+      const isAdmin = data.user.email?.toLowerCase() === adminEmail.toLowerCase()
+      
       // Show success message
       setSuccess(true)
       setError(null)
@@ -89,10 +93,13 @@ export default function LoginPage() {
       // Set flag to show welcome message on dashboard
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('showWelcomeMessage', 'true')
+        if (isAdmin) {
+          sessionStorage.setItem('adminName', 'Omar Bucio Brivano')
+        }
       }
       
-      // Wait 1 second to show success message, then redirect
-      await new Promise(resolve => setTimeout(resolve, 1000))
+      // Wait 1.5 seconds to show welcome message, then redirect
+      await new Promise(resolve => setTimeout(resolve, 1500))
       
       // Successfully logged in - redirect to dashboard using replace
       router.replace('/')
@@ -125,19 +132,26 @@ export default function LoginPage() {
             <p className="text-gray-600 text-sm sm:text-base">Please sign in to access your account</p>
           </div>
 
-          {/* Success Toast Notification */}
+          {/* Success Toast Notification with Welcome Message */}
           {success && (
             <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-top fade-in">
-              <div className="bg-white rounded-lg shadow-lg border border-green-200 p-3 sm:p-4 max-w-xs w-full flex items-center gap-3">
-                <div className="flex-shrink-0">
-                  <div className="h-8 w-8 rounded-full bg-green-100 flex items-center justify-center">
-                    <svg className="h-5 w-5 text-green-600" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
+              <div className="bg-white rounded-lg shadow-lg border border-green-200 p-4 sm:p-5 max-w-sm w-full">
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0">
+                    <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
+                      <svg className="h-6 w-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
                   </div>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-900">Login successful</p>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 mb-1">Login successful!</p>
+                    {email.toLowerCase() === 'omarbuciofgr@gmail.com' && (
+                      <p className="text-sm text-gray-700 font-medium">
+                        Welcome back, <span className="text-blue-600 font-bold">Omar Bucio Brivano</span>!
+                      </p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>

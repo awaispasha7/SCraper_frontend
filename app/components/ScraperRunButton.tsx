@@ -31,8 +31,10 @@ export default function ScraperRunButton({
         cyan: 'bg-cyan-50 border-cyan-300 text-cyan-700 hover:bg-cyan-100'
     }
 
-    // Poll status to sync with backend
+    // Poll status to sync with backend - only when scraper is running
     useEffect(() => {
+        let intervalId: NodeJS.Timeout | null = null
+
         const pollStatus = async () => {
             try {
                 const res = await fetch(`${BACKEND_URL}/api/status-all`)
@@ -47,28 +49,43 @@ export default function ScraperRunButton({
 
                     setIsSystemBusy(systemCheck)
 
-                    if (isRunning && !isBackendRunning && apiStatus?.last_run) {
-                        // Just finished
-                        if (apiStatus.last_result?.success) {
-                            setToast({ message: `✅ ${scraperName} Scraper Completed!`, type: 'success' })
-                        } else if (apiStatus.last_result?.error) {
-                            setToast({ message: `❌ ${scraperName} Failed: ${apiStatus.last_result.error}`, type: 'error' })
+                    setIsRunning(prev => {
+                        if (prev && !isBackendRunning && apiStatus?.last_run) {
+                            // Just finished
+                            if (apiStatus.last_result?.success) {
+                                setToast({ message: `✅ ${scraperName} Scraper Completed!`, type: 'success' })
+                            } else if (apiStatus.last_result?.error) {
+                                setToast({ message: `❌ ${scraperName} Failed: ${apiStatus.last_result.error}`, type: 'error' })
+                            }
+                            setTimeout(() => setToast(null), 5000)
                         }
-                        setTimeout(() => setToast(null), 5000)
-                    }
+                        return isBackendRunning
+                    })
 
-                    setIsRunning(isBackendRunning)
+                    // Start polling if any scraper is running and we're not already polling
+                    if (systemCheck && !intervalId) {
+                        intervalId = setInterval(pollStatus, 3000)
+                    }
+                    // Stop polling if no scrapers are running
+                    else if (!systemCheck && intervalId) {
+                        clearInterval(intervalId)
+                        intervalId = null
+                    }
                 }
             } catch (e) {
                 // ignore
             }
         }
 
-        const interval = setInterval(pollStatus, 3000)
-        // Initial poll
+        // Initial check - only poll if scrapers are running
         pollStatus()
-        return () => clearInterval(interval)
-    }, [scraperId, scraperName, isRunning])
+
+        return () => {
+            if (intervalId) {
+                clearInterval(intervalId)
+            }
+        }
+    }, [scraperId, scraperName]) // Only depend on scraperId and name, not running state
 
 
     const triggerScraper = async () => {

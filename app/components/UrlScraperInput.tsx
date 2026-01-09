@@ -49,11 +49,84 @@ export default function UrlScraperInput({
   const [showStopConfirmModal, setShowStopConfirmModal] = useState(false)
   const [hasCheckedInitialStatus, setHasCheckedInitialStatus] = useState(false)
   const [scrapeStartTime, setScrapeStartTime] = useState<Date | null>(null) // Track when current scrape started
+  const [scrapedCount, setScrapedCount] = useState<number | null>(null)
+  
+  // Helper function to get sessionStorage key for progress tracking
+  const getProgressStorageKey = (platform: string | null) => {
+    if (!platform) return null
+    return `scraper_progress_${platform}`
+  }
+  
+  // Initialize state from sessionStorage if available (persists across refreshes)
+  const [baselineCount, setBaselineCount] = useState<number | null>(() => {
+    if (typeof window !== 'undefined' && expectedPlatform) {
+      const key = getProgressStorageKey(expectedPlatform)
+      if (key) {
+        const stored = sessionStorage.getItem(key)
+        if (stored) {
+          try {
+            const data = JSON.parse(stored)
+            return data.baselineCount ?? null
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
+    return null
+  })
+  
+  const [expectedTotal, setExpectedTotal] = useState<number | null>(() => {
+    if (typeof window !== 'undefined' && expectedPlatform) {
+      const key = getProgressStorageKey(expectedPlatform)
+      if (key) {
+        const stored = sessionStorage.getItem(key)
+        if (stored) {
+          try {
+            const data = JSON.parse(stored)
+            return data.expectedTotal ?? null
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
+    return null
+  })
+  
+  // Track count of processed listings from logs (both saved and updated)
+  const [processedCount, setProcessedCount] = useState<number>(() => {
+    if (typeof window !== 'undefined' && expectedPlatform) {
+      const key = getProgressStorageKey(expectedPlatform)
+      if (key) {
+        const stored = sessionStorage.getItem(key)
+        if (stored) {
+          try {
+            const data = JSON.parse(stored)
+            return data.processedCount ?? 0
+          } catch (e) {
+            // Ignore parse errors
+          }
+        }
+      }
+    }
+    return 0
+  })
+  
+  // savedCount is calculated from logs (processedCount) when expectedTotal is available, 
+  // otherwise falls back to database difference
+  const savedCount = expectedTotal !== null && processedCount > 0
+    ? processedCount
+    : (expectedTotal !== null && baselineCount !== null && scrapedCount !== null
+      ? Math.max(0, scrapedCount - baselineCount)
+      : null)
   
   // New state for manual input method
-  const [selectedPlatform, setSelectedPlatform] = useState<string>('')
+  // If expectedPlatform is provided, auto-select it but allow both manual and URL input methods
+  const [selectedPlatform, setSelectedPlatform] = useState<string>(expectedPlatform || '')
   const [locationInput, setLocationInput] = useState<string>('')
   const [inputMethod, setInputMethod] = useState<'manual' | 'url'>('manual') // Track which input method is being used - default to manual
+  const [retrievedUrl, setRetrievedUrl] = useState<string | null>(null) // Store the URL retrieved from location search
 
   // Check initial status on mount to restore state if scraper is already running
   useEffect(() => {
@@ -84,6 +157,26 @@ export default function UrlScraperInput({
               if (logsRes.ok) {
                 const logsData = await logsRes.json()
                 setLogs(logsData.logs || [])
+              }
+              
+              // Fetch initial scraped count to restore progress
+              const endpointMap: Record<string, string> = {
+                'fsbo': '/api/listings?',
+                'apartments': '/api/apartments-listings?',
+                'zillow_fsbo': '/api/zillow-fsbo-listings?',
+                'zillow_frbo': '/api/zillow-frbo-listings?',
+                'hotpads': '/api/hotpads-listings?',
+                'redfin': '/api/redfin-listings?',
+                'trulia': '/api/trulia-listings?'
+              }
+              const endpoint = endpointMap[statusKey]
+              if (endpoint) {
+                const countRes = await fetch(endpoint, { cache: 'no-store' }).catch(() => null)
+                if (countRes?.ok) {
+                  const countData = await countRes.json()
+                  const count = countData?.total_listings || countData?.listings?.length || 0
+                  setScrapedCount(count)
+                }
               }
               
               // Only restore the first running scraper found
@@ -140,6 +233,18 @@ export default function UrlScraperInput({
                 setTimeout(() => {
                   setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
                   setLogs([])
+                  setScrapedCount(null)
+                  setBaselineCount(null)
+                  setExpectedTotal(null)
+                  setProcessedCount(0)
+                  // Clear sessionStorage
+                  if (scrapeStatus.platform && typeof window !== 'undefined') {
+                    const key = getProgressStorageKey(scrapeStatus.platform)
+                    if (key) {
+                      sessionStorage.removeItem(key)
+                    }
+                  }
+                  // Keep retrievedUrl visible even after scraping completes so user can see what was scraped
                 }, 5000)
               } else {
                 const errorMsg = lastResult.error || `Scraping failed with return code ${lastResult.returncode || 'unknown'}`
@@ -158,6 +263,17 @@ export default function UrlScraperInput({
               setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
               setValidationError(null)
               setLogs([])
+              setScrapedCount(null)
+              setBaselineCount(null)
+              setExpectedTotal(null)
+              setProcessedCount(0)
+              // Clear sessionStorage
+              if (scrapeStatus.platform && typeof window !== 'undefined') {
+                const key = getProgressStorageKey(scrapeStatus.platform)
+                if (key) {
+                  sessionStorage.removeItem(key)
+                }
+              }
             }
           }
         }
@@ -183,23 +299,156 @@ export default function UrlScraperInput({
       }
     }
 
-    // Poll status and logs every 2 seconds while scraper is running
+    // Fetch scraped listings count for current platform
+    const fetchScrapedCount = async () => {
+      if (!scrapeStatus.platform) return
+      
+      try {
+        const statusKey = PLATFORM_TO_STATUS_KEY[scrapeStatus.platform]
+        if (!statusKey) return
+
+        // Map status key to API endpoint
+        const endpointMap: Record<string, string> = {
+          'fsbo': '/api/listings?',
+          'apartments': '/api/apartments-listings?',
+          'zillow_fsbo': '/api/zillow-fsbo-listings?',
+          'zillow_frbo': '/api/zillow-frbo-listings?',
+          'hotpads': '/api/hotpads-listings?',
+          'redfin': '/api/redfin-listings?',
+          'trulia': '/api/trulia-listings?'
+        }
+
+        const endpoint = endpointMap[statusKey]
+        if (!endpoint) return
+
+        // Add timestamp for cache busting to ensure real-time updates
+        const timestamp = new Date().getTime()
+        const urlWithTimestamp = endpoint.includes('?') ? `${endpoint}&t=${timestamp}` : `${endpoint}?t=${timestamp}`
+        const res = await fetch(urlWithTimestamp, { cache: 'no-store' }).catch(() => null)
+        if (res?.ok) {
+          const data = await res.json()
+          const count = data?.total_listings || data?.listings?.length || 0
+          setScrapedCount(count)
+        }
+      } catch (err) {
+        // Silently fail
+      }
+    }
+
+    // Poll status and logs every 2.5 seconds while scraper is running (reduced frequency to prevent excessive polling)
     const interval = setInterval(() => {
       pollStatus()
       fetchLogs()
-    }, 2000)
+      fetchScrapedCount()
+    }, 2500) // Increased to 2.5s to reduce load and log spam
     // Initial poll
     pollStatus()
     fetchLogs()
+    fetchScrapedCount()
 
     return () => clearInterval(interval)
-  }, [scrapeStatus.status, scrapeStatus.platform, hasCheckedInitialStatus, url])
+  }, [scrapeStatus.status, scrapeStatus.platform, hasCheckedInitialStatus, url]) // Removed logs dependency to prevent interval recreation
+
+  // Separate effect to parse logs when they update (doesn't recreate polling interval)
+  useEffect(() => {
+    if (scrapeStatus.status === 'running' && scrapeStatus.platform && logs.length > 0) {
+      let foundExpectedTotal = false
+      let newProcessedCount = 0
+      
+      // Parse all logs to extract expected total and count processed listings
+      for (const log of logs) {
+        const msg = log.message || ''
+        
+        // Extract expected total count from logs
+        if (!foundExpectedTotal) {
+          // Pattern 1: "Found X unique listing URLs (Expected: Y)"
+          const expectedMatch1 = msg.match(/Found\s+\d+\s+unique\s+listing\s+URLs\s+\(Expected:\s+(\d+)\)/i)
+          if (expectedMatch1 && expectedMatch1[1]) {
+            const count = parseInt(expectedMatch1[1], 10)
+            if (!isNaN(count) && count > 0) {
+              setExpectedTotal(count)
+              foundExpectedTotal = true
+              // Persist to sessionStorage
+              if (scrapeStatus.platform && typeof window !== 'undefined') {
+                try {
+                  const key = getProgressStorageKey(scrapeStatus.platform)
+                  if (key) {
+                    const stored = sessionStorage.getItem(key)
+                    const progressData = stored ? JSON.parse(stored) : {}
+                    progressData.expectedTotal = count
+                    sessionStorage.setItem(key, JSON.stringify(progressData))
+                  }
+                } catch (e) {
+                  // Ignore storage errors
+                }
+              }
+            }
+          }
+          
+          // Pattern 2: "Expected total listings from website: Y"
+          if (!foundExpectedTotal) {
+            const expectedMatch2 = msg.match(/Expected\s+total\s+listings\s+from\s+website:\s+(\d+)/i)
+            if (expectedMatch2 && expectedMatch2[1]) {
+              const count = parseInt(expectedMatch2[1], 10)
+              if (!isNaN(count) && count > 0) {
+                setExpectedTotal(count)
+                foundExpectedTotal = true
+                // Persist to sessionStorage
+                if (scrapeStatus.platform && typeof window !== 'undefined') {
+                  try {
+                    const key = getProgressStorageKey(scrapeStatus.platform)
+                    if (key) {
+                      const stored = sessionStorage.getItem(key)
+                      const progressData = stored ? JSON.parse(stored) : {}
+                      progressData.expectedTotal = count
+                      sessionStorage.setItem(key, JSON.stringify(progressData))
+                    }
+                  } catch (e) {
+                    // Ignore storage errors
+                  }
+                }
+              }
+            }
+          }
+        }
+        
+        // Count processed listings (both saved and updated)
+        const msgLower = msg.toLowerCase()
+        if (msgLower.includes('saved to supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+          newProcessedCount++
+        } else if (msgLower.includes('updated in supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+          newProcessedCount++
+        }
+      }
+      
+      // Update processed count if it changed
+      if (newProcessedCount > processedCount) {
+        setProcessedCount(newProcessedCount)
+        // Persist to sessionStorage
+        if (scrapeStatus.platform && typeof window !== 'undefined') {
+          try {
+            const key = getProgressStorageKey(scrapeStatus.platform)
+            if (key) {
+              const stored = sessionStorage.getItem(key)
+              const progressData = stored ? JSON.parse(stored) : {}
+              progressData.processedCount = newProcessedCount
+              sessionStorage.setItem(key, JSON.stringify(progressData))
+            }
+          } catch (e) {
+            // Ignore storage errors
+          }
+        }
+      }
+    }
+  }, [logs, scrapeStatus.status, scrapeStatus.platform, processedCount]) // Added processedCount to prevent unnecessary updates
 
   // Ref to track validation timeout
   const validationTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Handle platform selection change
   const handlePlatformChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    // Don't allow changes if expectedPlatform is set (platform is locked on individual pages)
+    if (expectedPlatform) return
     setSelectedPlatform(e.target.value)
     // Don't auto-switch input method - user controls via toggle switch
     setValidationError(null)
@@ -321,6 +570,8 @@ export default function UrlScraperInput({
         trimmedUrl = searchResult.url
         // Update the URL state for display purposes
         setUrl(trimmedUrl)
+        // Store the retrieved URL to display it visually
+        setRetrievedUrl(trimmedUrl)
         // Update platform if detected
         if (searchResult.platform) {
           setScrapeStatus({ 
@@ -398,9 +649,67 @@ export default function UrlScraperInput({
       })
       setValidationError(null)
       
+      // Keep retrievedUrl visible during scraping so user can see what URL is being scraped
+      // If we don't have a retrievedUrl yet (e.g., from URL input method), use trimmedUrl
+      if (!retrievedUrl && trimmedUrl) {
+        setRetrievedUrl(trimmedUrl)
+      }
+      
       // Clear logs and track when scraping started for this session
       setLogs([])
       setScrapeStartTime(new Date())
+      // Reset processed count for new scrape session
+      setProcessedCount(0)
+      
+      // Get baseline count for this session
+      const platform = data.platform || scrapeStatus.platform || ''
+      if (platform) {
+        const statusKey = PLATFORM_TO_STATUS_KEY[platform]
+        if (statusKey) {
+          const endpointMap: Record<string, string> = {
+            'fsbo': '/api/listings?',
+            'apartments': '/api/apartments-listings?',
+            'zillow_fsbo': '/api/zillow-fsbo-listings?',
+            'zillow_frbo': '/api/zillow-frbo-listings?',
+            'hotpads': '/api/hotpads-listings?',
+            'redfin': '/api/redfin-listings?',
+            'trulia': '/api/trulia-listings?'
+          }
+          const endpoint = endpointMap[statusKey]
+          if (endpoint) {
+            try {
+              const res = await fetch(endpoint, { cache: 'no-store' }).catch(() => null)
+              if (res?.ok) {
+                const countData = await res.json()
+                const baseline = countData?.total_listings || countData?.listings?.length || 0
+                setBaselineCount(baseline)
+                setScrapedCount(baseline)
+                
+                // Persist baseline count to sessionStorage
+                if (platform && typeof window !== 'undefined') {
+                  try {
+                    const key = getProgressStorageKey(platform)
+                    if (key) {
+                      const stored = sessionStorage.getItem(key)
+                      const progressData = stored ? JSON.parse(stored) : {}
+                      progressData.baselineCount = baseline
+                      sessionStorage.setItem(key, JSON.stringify(progressData))
+                    }
+                  } catch (e) {
+                    // Ignore storage errors
+                  }
+                }
+              } else {
+                setBaselineCount(0)
+                setScrapedCount(0)
+              }
+            } catch (err) {
+              setBaselineCount(0)
+              setScrapedCount(0)
+            }
+          }
+        }
+      }
 
       if (onSuccess && data.platform) {
         onSuccess(data.platform, trimmedUrl)
@@ -581,6 +890,40 @@ export default function UrlScraperInput({
         return null
     }
   }
+  
+  // Separate function for input field icon (properly sized to prevent overflow)
+  const getInputStatusIcon = () => {
+    switch (scrapeStatus.status) {
+      case 'validating':
+        return (
+          <svg className="w-full h-full animate-spin" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        )
+      case 'starting':
+      case 'running':
+        return (
+          <svg className="w-full h-full text-blue-600 animate-pulse" fill="currentColor" viewBox="0 0 24 24">
+            <circle cx="12" cy="12" r="10" className="opacity-25" />
+            <path d="M12 2a10 10 0 0110 10h-4a6 6 0 00-6-6V2z" className="opacity-75" />
+          </svg>
+        )
+      case 'success':
+        return (
+          <svg className="w-full h-full text-green-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+          </svg>
+        )
+      case 'error':
+        return (
+          <svg className="w-full h-full text-red-600" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
+        )
+      default:
+        return null
+    }
+  }
 
   const getStatusColor = () => {
     switch (scrapeStatus.status) {
@@ -602,175 +945,335 @@ export default function UrlScraperInput({
   const handleInputMethodToggle = (method: 'manual' | 'url') => {
     setInputMethod(method)
     setValidationError(null)
+    setRetrievedUrl(null) // Clear retrieved URL when switching methods
     if (scrapeStatus.status === 'error') {
       setScrapeStatus({ status: 'idle', message: '' })
+    }
+  }
+  
+  // Copy URL to clipboard
+  const copyUrlToClipboard = async () => {
+    if (retrievedUrl) {
+      try {
+        await navigator.clipboard.writeText(retrievedUrl)
+        // Show brief feedback
+        const originalUrl = retrievedUrl
+        setRetrievedUrl('✓ Copied!')
+        setTimeout(() => {
+          setRetrievedUrl(originalUrl)
+        }, 1500)
+      } catch (err) {
+        console.error('Failed to copy URL:', err)
+      }
     }
   }
 
   return (
     <div className={className}>
       <div className="relative">
-        {/* Input Method Toggle Switch */}
-        <div className="flex items-center justify-center mb-6">
-          <div className="flex items-center bg-gray-100 rounded-lg p-1 shadow-inner">
+        {/* Input Method Toggle Switch - Always show, even on individual scraper pages */}
+        <div className="mb-6">
+          <div className="flex items-center bg-white border border-gray-200 rounded-lg p-1 w-full shadow-sm overflow-hidden">
             <button
               type="button"
               onClick={() => handleInputMethodToggle('manual')}
               className={`
-                px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
+                flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 rounded-md text-xs sm:text-sm font-medium transition-all duration-200 min-w-0
                 ${
                   inputMethod === 'manual'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-900 hover:text-gray-700 bg-transparent'
                 }
                 ${scrapeStatus.status === 'running' || isValidating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
               `}
               disabled={scrapeStatus.status === 'running' || isValidating}
             >
-              <span className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
-                </svg>
-                Search by Location
-              </span>
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+              </svg>
+              <span className="whitespace-nowrap truncate">Search by Location</span>
             </button>
             <button
               type="button"
               onClick={() => handleInputMethodToggle('url')}
               className={`
-                px-4 py-2 rounded-md text-sm font-medium transition-all duration-200
+                flex-1 flex items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-3 md:px-4 py-2 sm:py-2.5 rounded-md text-xs sm:text-sm font-medium transition-all duration-200 min-w-0
                 ${
                   inputMethod === 'url'
-                    ? 'bg-white text-blue-600 shadow-sm'
-                    : 'text-gray-600 hover:text-gray-900'
+                    ? 'bg-blue-600 text-white shadow-sm'
+                    : 'text-gray-900 hover:text-gray-700 bg-transparent'
                 }
                 ${scrapeStatus.status === 'running' || isValidating ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}
               `}
               disabled={scrapeStatus.status === 'running' || isValidating}
             >
-              <span className="flex items-center gap-2">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-                </svg>
-                Paste URL
-              </span>
+              <svg className="w-3.5 h-3.5 sm:w-4 sm:h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+              </svg>
+              <span className="whitespace-nowrap truncate">Paste URL</span>
             </button>
           </div>
         </div>
 
-        {/* Manual Input Method: Platform + Location */}
-        <div className={`space-y-3 mb-4 transition-opacity duration-200 ${inputMethod === 'manual' ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-          <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
-            <div className="flex-1">
-              <label htmlFor="platform-select" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                Platform
-              </label>
-              <select
-                id="platform-select"
-                value={selectedPlatform}
-                onChange={handlePlatformChange}
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                disabled={scrapeStatus.status === 'running' || isValidating || inputMethod !== 'manual'}
-              >
-                <option value="">Select Platform</option>
-                {getAvailablePlatforms().map(platform => (
-                  <option key={platform.value} value={platform.value}>
-                    {platform.label}
-                  </option>
-                ))}
-              </select>
+        {/* Manual Input Method: Platform + Location - Only show when selected */}
+        {inputMethod === 'manual' && (
+          <div className="space-y-3 mb-4">
+            <div className="flex flex-col gap-3 sm:gap-4">
+              <div className="flex-1">
+                <label htmlFor="platform-select" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                  Platform
+                </label>
+                <select
+                  id="platform-select"
+                  value={selectedPlatform}
+                  onChange={handlePlatformChange}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                  disabled={scrapeStatus.status === 'running' || isValidating || !!expectedPlatform}
+                >
+                  <option value="">Select Platform</option>
+                  {getAvailablePlatforms().map(platform => (
+                    <option key={platform.value} value={platform.value}>
+                      {platform.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label htmlFor="location-input" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                  City/Region/Neighborhood/County/Zip
+                </label>
+                <input
+                  id="location-input"
+                  type="text"
+                  value={locationInput}
+                  onChange={handleLocationChange}
+                  placeholder="e.g., Chicago IL, 60601, Washington DC"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
+                  disabled={scrapeStatus.status === 'running' || isValidating}
+                />
+              </div>
             </div>
-            <div className="flex-1">
-              <label htmlFor="location-input" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-                City/Region/Neighborhood/County/Zip
-              </label>
-              <input
-                id="location-input"
-                type="text"
-                value={locationInput}
-                onChange={handleLocationChange}
-                placeholder="e.g., Chicago IL, 60601, Washington DC"
-                className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200"
-                disabled={scrapeStatus.status === 'running' || isValidating || inputMethod !== 'manual'}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* URL Input Method */}
-        <div className={`flex flex-col sm:flex-row gap-2 sm:gap-2 transition-opacity duration-200 ${inputMethod === 'url' ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
-          <div className="flex-1 relative">
-            <label htmlFor="url-input" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
-              Paste any property listing URL to automatically detect and scrape
-            </label>
-            <input
-              id="url-input"
-              type="text"
-              value={url}
-              onChange={handleUrlChange}
-              onBlur={handleBlur}
-              placeholder={placeholder}
-              className={`
-                w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-10 text-sm sm:text-base border-2 rounded-lg
-                focus:outline-none focus:ring-2 focus:ring-offset-0
-                transition-all duration-200
-                ${getStatusColor()}
-                ${validationError ? 'border-red-300' : ''}
-                ${isValidating ? 'opacity-75' : ''}
-              `}
-              disabled={scrapeStatus.status === 'running' || isValidating || inputMethod !== 'url'}
-            />
-            {scrapeStatus.status !== 'idle' && (
-              <div className="absolute right-2 sm:right-3 top-9 sm:top-10 -translate-y-1/2">
-                {getStatusIcon()}
+            
+            {/* Display Retrieved URL - Show when URL is found from location search or during scraping */}
+            {retrievedUrl && (inputMethod === 'manual' || scrapeStatus.status === 'running') && (
+              <div className={`mt-4 p-4 rounded-lg shadow-sm border-2 ${
+                scrapeStatus.status === 'running' 
+                  ? 'bg-green-50 border-green-200' 
+                  : 'bg-blue-50 border-blue-200'
+              }`}>
+                <div className="flex items-start gap-3">
+                  <div className="flex-shrink-0 mt-0.5">
+                    {scrapeStatus.status === 'running' ? (
+                      <svg className="w-5 h-5 text-green-600 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-xs sm:text-sm font-semibold mb-1.5 ${
+                      scrapeStatus.status === 'running' ? 'text-green-900' : 'text-blue-900'
+                    }`}>
+                      {scrapeStatus.status === 'running' ? 'Scraping URL:' : 'Found Listing URL:'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <a
+                        href={retrievedUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`flex-1 text-xs sm:text-sm break-all font-mono truncate hover:underline ${
+                          scrapeStatus.status === 'running' 
+                            ? 'text-green-700 hover:text-green-900' 
+                            : 'text-blue-700 hover:text-blue-900'
+                        }`}
+                        title={retrievedUrl}
+                      >
+                        {retrievedUrl === '✓ Copied!' ? retrievedUrl : retrievedUrl}
+                      </a>
+                      {retrievedUrl !== '✓ Copied!' && (
+                        <button
+                          onClick={copyUrlToClipboard}
+                          className={`flex-shrink-0 px-2 py-1.5 text-xs font-medium border rounded hover:bg-opacity-80 transition-colors duration-200 ${
+                            scrapeStatus.status === 'running'
+                              ? 'text-green-700 bg-white border-green-300 hover:bg-green-50'
+                              : 'text-blue-700 bg-white border-blue-300 hover:bg-blue-50'
+                          }`}
+                          title="Copy URL"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
-            {showDefaultValue && defaultUrl && !url && (
-              <div className="absolute left-3 sm:left-4 top-9 sm:top-10 -translate-y-1/2 text-gray-400 text-xs sm:text-sm pointer-events-none max-w-[calc(100%-80px)] truncate">
-                Default: {defaultUrl}
+            
+            {/* Action Button for Manual Mode - Centered and decent sized */}
+            <div className="flex flex-col items-center mt-6 gap-2">
+              <div className="flex justify-center">
+                {scrapeStatus.status === 'running' ? (
+                  <button
+                    onClick={handleStopScraper}
+                    className="px-8 sm:px-10 py-3 sm:py-3.5 rounded-lg font-semibold text-base sm:text-lg bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200 whitespace-nowrap min-w-[140px] sm:min-w-[160px]"
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <span>🛑</span>
+                      <span className="hidden sm:inline">Stop Scraper</span>
+                      <span className="sm:hidden">Stop</span>
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleScrape}
+                    disabled={!canStartScraping() || isValidating || scrapeStatus.status === 'starting'}
+                    className={`
+                      px-8 sm:px-10 py-3 sm:py-3.5 rounded-lg font-semibold text-base sm:text-lg
+                      transition-all duration-200 whitespace-nowrap min-w-[140px] sm:min-w-[160px]
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                      ${scrapeStatus.status === 'starting'
+                        ? 'bg-blue-600 text-white cursor-wait'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
+                      }
+                    `}
+                  >
+                    {scrapeStatus.status === 'starting' ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin">⏳</span>
+                        <span className="hidden sm:inline">Starting...</span>
+                        <span className="sm:hidden">Starting</span>
+                      </span>
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">Start Scraping</span>
+                        <span className="sm:hidden">Start</span>
+                      </>
+                    )}
+                  </button>
+                )}
               </div>
-            )}
-          </div>
-          {scrapeStatus.status === 'running' ? (
-            <button
-              onClick={handleStopScraper}
-              className="px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200 whitespace-nowrap self-end"
-            >
-              <span className="flex items-center justify-center gap-2">
-                <span>🛑</span>
-                <span className="hidden sm:inline">Stop Scraper</span>
-                <span className="sm:hidden">Stop</span>
-              </span>
-            </button>
-          ) : (
-            <button
-              onClick={handleScrape}
-              disabled={!canStartScraping() || isValidating || scrapeStatus.status === 'starting'}
-              className={`
-                px-4 sm:px-6 py-2.5 sm:py-3 rounded-lg font-semibold text-sm sm:text-base
-                transition-all duration-200 whitespace-nowrap self-end
-                disabled:opacity-50 disabled:cursor-not-allowed
-                ${scrapeStatus.status === 'starting'
-                  ? 'bg-blue-600 text-white cursor-wait'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
-                }
-              `}
-            >
-              {scrapeStatus.status === 'starting' ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="animate-spin">⏳</span>
-                  <span className="hidden sm:inline">Starting...</span>
-                  <span className="sm:hidden">Starting</span>
-                </span>
-              ) : (
+              {/* Session scraped count - shown when running */}
+              {scrapeStatus.status === 'running' && (
                 <>
-                  <span className="hidden sm:inline">Start Scraping</span>
-                  <span className="sm:hidden">Start</span>
+                  {/* Show progress with expected total if available */}
+                  {expectedTotal !== null && savedCount !== null && savedCount >= 0 ? (
+                    <p className="text-sm font-bold text-red-600 text-center">
+                      {savedCount}/{expectedTotal} scraped this session
+                    </p>
+                  ) : scrapedCount !== null && baselineCount !== null ? (
+                    <p className="text-sm font-bold text-red-600 text-center">
+                      +{Math.max(0, scrapedCount - baselineCount).toLocaleString()} listings scraped this session
+                    </p>
+                  ) : null}
                 </>
               )}
-            </button>
-          )}
-        </div>
+            </div>
+          </div>
+        )}
+
+        {/* URL Input Method - Only show when selected */}
+        {inputMethod === 'url' && (
+          <div className="space-y-4">
+            <div className="relative overflow-hidden">
+              <label htmlFor="url-input" className="block text-xs sm:text-sm font-medium text-gray-700 mb-1">
+                Paste any property listing URL to automatically detect and scrape
+              </label>
+              <input
+                id="url-input"
+                type="text"
+                value={url}
+                onChange={handleUrlChange}
+                onBlur={handleBlur}
+                placeholder={placeholder}
+                className={`
+                  w-full px-3 sm:px-4 py-2.5 sm:py-3 pr-10 sm:pr-12 text-sm sm:text-base border-2 rounded-lg
+                  focus:outline-none focus:ring-2 focus:ring-offset-0
+                  transition-all duration-200
+                  ${getStatusColor()}
+                  ${validationError ? 'border-red-300' : ''}
+                  ${isValidating ? 'opacity-75' : ''}
+                `}
+                disabled={scrapeStatus.status === 'running' || isValidating}
+              />
+              {scrapeStatus.status !== 'idle' && (
+                <div className="absolute right-3 sm:right-4 top-1/2 -translate-y-1/2 pointer-events-none flex items-center justify-center">
+                  <div className="w-4 h-4 sm:w-5 sm:h-5 overflow-hidden flex-shrink-0">
+                    {getInputStatusIcon()}
+                  </div>
+                </div>
+              )}
+              {showDefaultValue && defaultUrl && !url && (
+                <div className="absolute left-3 sm:left-4 top-9 sm:top-10 -translate-y-1/2 text-gray-400 text-xs sm:text-sm pointer-events-none max-w-[calc(100%-80px)] truncate">
+                  Default: {defaultUrl}
+                </div>
+              )}
+            </div>
+            {/* Action Button for URL Mode - Centered and decent sized */}
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex justify-center">
+                {scrapeStatus.status === 'running' ? (
+                  <button
+                    onClick={handleStopScraper}
+                    className="px-8 sm:px-10 py-3 sm:py-3.5 rounded-lg font-semibold text-base sm:text-lg bg-red-600 hover:bg-red-700 text-white shadow-md hover:shadow-lg transition-all duration-200 whitespace-nowrap min-w-[140px] sm:min-w-[160px]"
+                  >
+                    <span className="flex items-center justify-center gap-2">
+                      <span>🛑</span>
+                      <span className="hidden sm:inline">Stop Scraper</span>
+                      <span className="sm:hidden">Stop</span>
+                    </span>
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleScrape}
+                    disabled={!canStartScraping() || isValidating || scrapeStatus.status === 'starting'}
+                    className={`
+                      px-8 sm:px-10 py-3 sm:py-3.5 rounded-lg font-semibold text-base sm:text-lg
+                      transition-all duration-200 whitespace-nowrap min-w-[140px] sm:min-w-[160px]
+                      disabled:opacity-50 disabled:cursor-not-allowed
+                      ${scrapeStatus.status === 'starting'
+                        ? 'bg-blue-600 text-white cursor-wait'
+                        : 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg'
+                      }
+                    `}
+                  >
+                    {scrapeStatus.status === 'starting' ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <span className="animate-spin">⏳</span>
+                        <span className="hidden sm:inline">Starting...</span>
+                        <span className="sm:hidden">Starting</span>
+                      </span>
+                    ) : (
+                      <>
+                        <span className="hidden sm:inline">Start Scraping</span>
+                        <span className="sm:hidden">Start</span>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+              {/* Session scraped count - shown when running */}
+              {scrapeStatus.status === 'running' && (
+                <>
+                  {/* Show progress with expected total if available */}
+                  {expectedTotal !== null && savedCount !== null && savedCount >= 0 ? (
+                    <p className="text-sm font-bold text-red-600 text-center">
+                      {savedCount}/{expectedTotal} scraped this session
+                    </p>
+                  ) : scrapedCount !== null && baselineCount !== null ? (
+                    <p className="text-sm font-bold text-red-600 text-center">
+                      +{Math.max(0, scrapedCount - baselineCount).toLocaleString()} listings scraped this session
+                    </p>
+                  ) : null}
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Status Message (exclude error status - errors shown separately) */}
         {scrapeStatus.message && scrapeStatus.status !== 'idle' && scrapeStatus.status !== 'error' && (

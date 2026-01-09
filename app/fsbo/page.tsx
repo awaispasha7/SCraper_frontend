@@ -1083,13 +1083,12 @@ function DashboardContent() {
                   <span className="text-4xl">🏠</span>
                 </div>
                 <div>
-                  <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-2 tracking-tight">
-                    ForSaleByOwner
-                    <span className="block text-2xl md:text-3xl text-gray-600 font-medium mt-1">Dashboard</span>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 mb-2 tracking-tight break-words">
+                    <span className="block">ForSaleByOwner</span>
+                    <span className="block text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 font-medium mt-1">Dashboard</span>
                   </h1>
-                  <p className="text-gray-600 text-lg flex items-center gap-2">
-                    <span className="text-xl">📍</span>
-                    Chicago, Illinois Property Listings
+                  <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
+                    Property Listings
                   </p>
                 </div>
               </div>
@@ -1152,44 +1151,25 @@ function DashboardContent() {
                 <img src="/fsbo-default.2328aad2.svg" alt="ForSaleByOwner Logo" className="h-8 sm:h-10 lg:h-12 w-auto" />
               </div>
               <div className="min-w-0 flex-1">
-                <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-1 sm:mb-2 tracking-tight">
-                  ForSaleByOwner
-                  <span className="block text-lg sm:text-xl md:text-2xl lg:text-3xl text-gray-600 font-medium mt-0.5 sm:mt-1">Dashboard</span>
+                <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 mb-1 sm:mb-2 tracking-tight break-words">
+                  <span className="block">ForSaleByOwner</span>
+                  <span className="block text-base sm:text-lg md:text-xl lg:text-2xl text-gray-600 font-medium mt-0.5 sm:mt-1">Dashboard</span>
                 </h1>
                 <p className="text-gray-600 text-sm sm:text-base lg:text-lg">
-                  Chicago, Illinois Property Listings
+                  Property Listings
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
-              <div className="bg-blue-50 rounded-lg px-4 sm:px-5 lg:px-6 py-2.5 sm:py-3 border border-blue-200 flex-shrink-0">
-                <div className="text-2xl sm:text-3xl font-bold text-blue-700">{data?.total_listings ?? 0}</div>
-                <div className="text-xs sm:text-sm text-blue-600 font-medium">Total Listings</div>
-              </div>
-              {dataChanged && (
+            {/* Data Changed Indicator Only - Removed Total Listings, Refresh, and Logout buttons from individual pages */}
+            {dataChanged && (
+              <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full md:w-auto">
                 <div className="bg-green-100 text-green-700 border border-green-300 px-3 sm:px-4 lg:px-5 py-2 sm:py-2.5 rounded-lg shadow-sm font-medium flex items-center gap-2 text-sm sm:text-base whitespace-nowrap">
                   <span className="text-sm">✓</span>
                   <span className="hidden sm:inline">Data Updated!</span>
                   <span className="sm:hidden">Updated!</span>
                 </div>
-              )}
-              <button
-                onClick={handleRefresh}
-                disabled={loading}
-                className="bg-blue-50 text-blue-700 border border-blue-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 flex items-center gap-2 disabled:opacity-50 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
-              >
-                <span className={`text-base sm:text-lg ${loading ? 'animate-spin' : 'animate-spin-slow'}`}>🔄</span>
-                <span className="hidden sm:inline">{loading ? 'Refreshing...' : 'Refresh'}</span>
-                <span className="sm:hidden">{loading ? 'Refresh...' : 'Refresh'}</span>
-              </button>
-              <button
-                onClick={handleLogout}
-                className="bg-gray-50 text-gray-700 border border-gray-300 px-4 sm:px-5 lg:px-6 py-2 sm:py-2.5 lg:py-3 rounded-lg hover:bg-gray-100 transition-all duration-200 flex items-center gap-2 font-medium shadow-sm hover:shadow-md text-sm sm:text-base flex-1 sm:flex-initial"
-              >
-                <span className="hidden sm:inline">Logout</span>
-                <span className="sm:hidden">Logout</span>
-              </button>
-            </div>
+              </div>
+            )}
           </div>
           
           {/* URL Scraper Input Section */}
@@ -1266,13 +1246,45 @@ function DashboardContent() {
         </div>
       )}
 
-      {/* Search Bar - Professional Design */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 -mt-2">
+
+      {/* Stats Cards */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
+          {/* Available Listings Card */}
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="mb-2">
+              <div className="text-3xl sm:text-4xl font-bold text-gray-900">
+                {searchQuery ? filteredListings.length : (data?.total_listings || 0)}
+              </div>
+            </div>
+            <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide">
+              {searchQuery ? 'Filtered Listings' : 'Available Listings'}
+            </div>
+            <div className="text-gray-500 text-xs mt-1 font-medium">
+              {searchQuery ? 'Matching search criteria' : 'Active properties'}
+            </div>
+          </div>
+
+          {/* Last Updated Card */}
+          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
+            <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
+            <div className="text-lg sm:text-xl font-bold">
+              {data?.scrape_timestamp ? formatDate(data.scrape_timestamp) : 'N/A'}
+            </div>
+            <div className="text-gray-500 text-xs mt-1 font-medium">
+              Last scraped date
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Search Section */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         <div className="bg-white rounded-2xl shadow-xl p-6 border border-gray-100">
           <div className="flex flex-col md:flex-row gap-4 items-center">
             <div className="flex-1 w-full">
               <label htmlFor="search" className="block text-sm font-semibold text-gray-700 mb-2">
-                Search Listings
+                Search FSBO Listings
               </label>
               <div className="relative">
                 <span className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
@@ -1286,7 +1298,7 @@ function DashboardContent() {
                   value={searchQuery}
                   onChange={(e) => {
                     setSearchQuery(e.target.value)
-                    setCurrentPage(1) // Reset to first page on search
+                    setCurrentPage(1)
                   }}
                   placeholder="Search"
                   className="w-full pl-12 pr-4 py-3.5 rounded-lg border-2 border-gray-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all text-gray-800 placeholder-gray-400 bg-white focus:bg-white font-medium"
@@ -1318,48 +1330,8 @@ function DashboardContent() {
         </div>
       </div>
 
-      {/* Stats - Professional Cards */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          {/* Available Listings Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
-            <div className="mb-4">
-              <div className="text-5xl font-bold text-gray-900">
-                {searchQuery ? filteredListings.length : (data?.total_listings || 0)}
-              </div>
-            </div>
-            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide">
-              {searchQuery ? 'Filtered Listings' : 'Available Listings'}
-            </div>
-            <div className="text-gray-500 text-xs mt-2 font-medium">
-              {searchQuery ? 'Matching search criteria' : 'Active properties'}
-            </div>
-          </div>
-
-          {/* Last Updated Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
-            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
-            <div className="text-xl font-bold">
-              {data?.scrape_timestamp ? formatDate(data.scrape_timestamp) : 'N/A'}
-            </div>
-            <div className="text-gray-500 text-xs mt-2 font-medium">
-              Last scraped date
-            </div>
-          </div>
-
-          {/* Status Card */}
-          <div className="bg-white rounded-lg shadow-sm p-6 border border-gray-200 hover:shadow-md transition-all duration-200">
-            <div className="text-gray-600 text-sm font-semibold uppercase tracking-wide mb-2">Status</div>
-            <div className="text-xl font-bold text-gray-900">Active</div>
-            {lastFetchTime && (
-              <div className="text-gray-500 text-xs mt-2 font-medium">
-                Last checked: {lastFetchTime.toLocaleTimeString()}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Listings Grid */}
+      {/* Listings Grid */}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-6">
         {(!data || !data.listings || data.listings.length === 0) && isSyncing ? (
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
             <div className="bg-white rounded-2xl shadow-lg p-12 text-center border border-gray-100">
@@ -1688,7 +1660,7 @@ function DashboardContent() {
                 </div>
               </div>
               <p className="text-gray-600 text-sm leading-relaxed">
-                Professional property management system for tracking and managing real estate listings in Chicago, Illinois.
+                Professional property management system for tracking and managing real estate listings.
               </p>
             </div>
 
@@ -1727,10 +1699,6 @@ function DashboardContent() {
             <div className="text-center md:text-left">
               <h4 className="text-gray-900 font-bold text-lg mb-4">Information</h4>
               <ul className="space-y-2">
-                <li className="text-gray-600 text-sm flex items-center justify-center md:justify-start gap-2">
-                  <span>📍</span>
-                  <span>Chicago, Illinois</span>
-                </li>
                 <li className="text-gray-600 text-sm flex items-center justify-center md:justify-start gap-2">
                   <span>📊</span>
                   <span>Real-time Data Updates</span>
