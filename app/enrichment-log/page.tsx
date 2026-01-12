@@ -67,7 +67,8 @@ export default function EnrichmentLogPage() {
         const fetchHistory = async () => {
             try {
                 setLoading(true)
-                const res = await fetch('/api/enrichment-history')
+                // Add timestamp to prevent browser caching
+                const res = await fetch(`/api/enrichment-history?t=${new Date().getTime()}`)
                 if (!res.ok) throw new Error('Failed to fetch enrichment history')
                 const data = await res.json()
                 setHistory(data.history || [])
@@ -89,7 +90,8 @@ export default function EnrichmentLogPage() {
 
         const refreshData = async () => {
             try {
-                const res = await fetch('/api/enrichment-history')
+                // Add timestamp to prevent browser caching
+                const res = await fetch(`/api/enrichment-history?t=${new Date().getTime()}`)
                 if (res.ok) {
                     const data = await res.json()
                     setHistory(data.history || [])

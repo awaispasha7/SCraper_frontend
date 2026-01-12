@@ -84,7 +84,12 @@ export async function GET() {
             owner_info: ownerMap[attempt.address_hash] || null
         }))
 
-        return NextResponse.json({ history })
+        const response = NextResponse.json({ history })
+        // Disable all caching to ensure fresh data
+        response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+        response.headers.set('Pragma', 'no-cache')
+        response.headers.set('Expires', '0')
+        return response
     } catch (error: any) {
         console.error('Enrichment history API error:', error)
         return NextResponse.json({ error: error.message }, { status: 500 })
