@@ -235,7 +235,7 @@ export default function EnrichmentLogPage() {
                                 onClick={() => setActiveTab('enriched')}
                                 className={`px-3 sm:px-6 py-2 rounded-lg text-xs sm:text-sm font-bold transition-all whitespace-nowrap ${activeTab === 'enriched' ? 'bg-green-600 text-white shadow-md' : 'text-gray-600 hover:bg-gray-50'}`}
                             >
-                                Enriched ({stats ? (stats.enriched_owners || stats.enriched) : history.filter(i => i.status === 'enriched').length})
+                                Enriched ({stats ? stats.enriched : history.filter(i => i.status === 'enriched').length})
                             </button>
                             <button
                                 onClick={() => setActiveTab('no_data')}
