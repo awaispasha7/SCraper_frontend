@@ -113,11 +113,11 @@ export default function UrlScraperInput({
     return 0
   })
   
-  // savedCount is calculated from logs (processedCount) when expectedTotal is available, 
-  // otherwise falls back to database difference
-  const savedCount = expectedTotal !== null && processedCount > 0
+  // savedCount is calculated from logs (processedCount) - prefer processedCount from logs
+  // Fall back to database difference only if processedCount is not available
+  const savedCount = processedCount > 0
     ? processedCount
-    : (expectedTotal !== null && baselineCount !== null && scrapedCount !== null
+    : (baselineCount !== null && scrapedCount !== null
       ? Math.max(0, scrapedCount - baselineCount)
       : null)
   
@@ -412,49 +412,70 @@ export default function UrlScraperInput({
           }
         }
         
-        // Count processed listings (both saved and updated)
-        // Check for various save messages from different scrapers:
-        // - Hotpads: "SUPABASE BATCH SAVED: X items written to database"
-        // - FSBO: "Saved to Supabase: {address}"
-        // - Trulia: "[OK] Saved to Supabase: {address}"
-        // - Zillow FRBO: "✅ Saved to Supabase: {address}"
-        // - Zillow FSBO: "Successfully uploaded: {address}"
-        // - Redfin: "Uploaded to Supabase (ID: {id}): {address}"
-        // - Apartments: "📤 Uploaded X items to Supabase" (DEBUG level, but handle if present)
+        // Count processed listings (both saved and updated) - Platform-specific parsing
         const msgLower = msg.toLowerCase()
+        const platform = scrapeStatus.platform?.toLowerCase() || ''
         
-        // Hotpads batch save - extract count from "SUPABASE BATCH SAVED: X items written to database"
-        if (msgLower.includes('supabase batch saved') && msgLower.includes('items written to database')) {
-          const match = msg.match(/(\d+)\s+items?\s+written\s+to\s+database/i)
-          if (match) {
-            const count = parseInt(match[1], 10)
-            newProcessedCount += count
+        // Platform-specific log message parsing
+        if (platform === 'hotpads') {
+          // Hotpads: "SUPABASE BATCH SAVED: X items written to database"
+          if (msgLower.includes('supabase batch saved') && msgLower.includes('items written to database')) {
+            const match = msg.match(/SUPABASE BATCH SAVED:\s*(\d+)\s+items?\s+written\s+to\s+database/i)
+            if (match && match[1]) {
+              const count = parseInt(match[1], 10)
+              if (!isNaN(count)) {
+                newProcessedCount += count
+              }
+            }
           }
-        }
-        // Apartments batch upload (DEBUG level, but handle if present)
-        else if (msgLower.includes('uploaded') && msgLower.includes('items to supabase')) {
-          const match = msg.match(/(\d+)\s+items?\s+to\s+supabase/i)
-          if (match) {
-            const count = parseInt(match[1], 10)
-            newProcessedCount += count
+        } else if (platform === 'fsbo') {
+          // FSBO: "Saved to Supabase: {address}" or "Updated in Supabase: {address}"
+          if (msgLower.includes('saved to supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+            newProcessedCount++
+          } else if (msgLower.includes('updated in supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+            newProcessedCount++
           }
-        }
-        // Redfin: "Uploaded to Supabase"
-        else if (msgLower.includes('uploaded to supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
-          newProcessedCount++
-        }
-        // Zillow FSBO: "Successfully uploaded"
-        else if (msgLower.includes('successfully uploaded') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
-          newProcessedCount++
-        }
-        // Other scrapers: single-item saves (FSBO, Trulia, Zillow FRBO)
-        else if ((msgLower.includes('saved to supabase') || msgLower.includes('[ok] saved to supabase')) 
-                 && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
-          newProcessedCount++
-        } 
-        // Updated messages
-        else if (msgLower.includes('updated in supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
-          newProcessedCount++
+        } else if (platform === 'trulia') {
+          // Trulia: "[OK] Saved to Supabase: {address}"
+          if ((msgLower.includes('saved to supabase') || msgLower.includes('[ok] saved to supabase')) 
+              && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+            newProcessedCount++
+          }
+        } else if (platform === 'zillow_frbo') {
+          // Zillow FRBO: "✅ Saved to Supabase: {address}"
+          if (msgLower.includes('saved to supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+            newProcessedCount++
+          }
+        } else if (platform === 'zillow_fsbo') {
+          // Zillow FSBO: "Successfully uploaded: {address}"
+          if (msgLower.includes('successfully uploaded') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+            newProcessedCount++
+          }
+        } else if (platform === 'redfin') {
+          // Redfin: "Uploaded to Supabase (ID: {id}): {address}"
+          if (msgLower.includes('uploaded to supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+            newProcessedCount++
+          }
+        } else if (platform === 'apartments') {
+          // Apartments: "📤 Uploaded X items to Supabase" (batch) or individual saves
+          if (msgLower.includes('uploaded') && msgLower.includes('items to supabase')) {
+            const match = msg.match(/(\d+)\s+items?\s+to\s+supabase/i)
+            if (match && match[1]) {
+              const count = parseInt(match[1], 10)
+              if (!isNaN(count)) {
+                newProcessedCount += count
+              }
+            }
+          } else if (msgLower.includes('saved to supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+            newProcessedCount++
+          }
+        } else {
+          // Fallback for unknown platforms - try common patterns
+          if (msgLower.includes('saved to supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+            newProcessedCount++
+          } else if (msgLower.includes('updated in supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+            newProcessedCount++
+          }
         }
       }
       
@@ -1197,10 +1218,14 @@ export default function UrlScraperInput({
               {/* Session scraped count - shown when running */}
               {scrapeStatus.status === 'running' && (
                 <>
-                  {/* Show progress with expected total if available */}
+                  {/* Show progress with expected total if available, otherwise show count from logs */}
                   {expectedTotal !== null && savedCount !== null && savedCount >= 0 ? (
                     <p className="text-sm font-bold text-red-600 text-center">
                       {savedCount}/{expectedTotal} scraped this session
+                    </p>
+                  ) : savedCount !== null && savedCount >= 0 ? (
+                    <p className="text-sm font-bold text-red-600 text-center">
+                      +{savedCount.toLocaleString()} listings scraped this session
                     </p>
                   ) : scrapedCount !== null && baselineCount !== null ? (
                     <p className="text-sm font-bold text-red-600 text-center">
@@ -1296,10 +1321,14 @@ export default function UrlScraperInput({
               {/* Session scraped count - shown when running */}
               {scrapeStatus.status === 'running' && (
                 <>
-                  {/* Show progress with expected total if available */}
+                  {/* Show progress with expected total if available, otherwise show count from logs */}
                   {expectedTotal !== null && savedCount !== null && savedCount >= 0 ? (
                     <p className="text-sm font-bold text-red-600 text-center">
                       {savedCount}/{expectedTotal} scraped this session
+                    </p>
+                  ) : savedCount !== null && savedCount >= 0 ? (
+                    <p className="text-sm font-bold text-red-600 text-center">
+                      +{savedCount.toLocaleString()} listings scraped this session
                     </p>
                   ) : scrapedCount !== null && baselineCount !== null ? (
                     <p className="text-sm font-bold text-red-600 text-center">
