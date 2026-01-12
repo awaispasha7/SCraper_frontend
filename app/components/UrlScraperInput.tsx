@@ -410,6 +410,33 @@ export default function UrlScraperInput({
               }
             }
           }
+          
+          // Pattern 3 (Hotpads): "Found X unique listing URLs to process (filtered from Y total URLs)"
+          // Extract X (the number of unique listing URLs to process)
+          if (!foundExpectedTotal) {
+            const expectedMatch3 = msg.match(/Found\s+(\d+)\s+unique\s+listing\s+URLs\s+to\s+process/i)
+            if (expectedMatch3 && expectedMatch3[1]) {
+              const count = parseInt(expectedMatch3[1], 10)
+              if (!isNaN(count) && count > 0) {
+                setExpectedTotal(count)
+                foundExpectedTotal = true
+                // Persist to sessionStorage
+                if (scrapeStatus.platform && typeof window !== 'undefined') {
+                  try {
+                    const key = getProgressStorageKey(scrapeStatus.platform)
+                    if (key) {
+                      const stored = sessionStorage.getItem(key)
+                      const progressData = stored ? JSON.parse(stored) : {}
+                      progressData.expectedTotal = count
+                      sessionStorage.setItem(key, JSON.stringify(progressData))
+                    }
+                  } catch (e) {
+                    // Ignore storage errors
+                  }
+                }
+              }
+            }
+          }
         }
         
         // Count processed listings (both saved and updated) - Platform-specific parsing
