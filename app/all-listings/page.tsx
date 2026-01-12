@@ -74,21 +74,6 @@ function AllListingsPageContent() {
       }
     }
 
-    const returningFromOwnerInfo = typeof window !== 'undefined' &&
-      (sessionStorage.getItem('returningFromOwnerInfo') || sessionStorage.getItem('preventScrollRestore'))
-
-    // If we have cached listings and are returning, don't fetch again immediately
-    const cachedData = typeof window !== 'undefined' ? sessionStorage.getItem('allListingsData') : null
-    if (returningFromOwnerInfo && cachedData) {
-      try {
-        setAllListings(JSON.parse(cachedData))
-        setLoading(false)
-        return
-      } catch (e) {
-        // Fallback to fetch
-      }
-    }
-
     fetchAllListings()
   }, [])
 
@@ -318,10 +303,6 @@ function AllListingsPageContent() {
       }
 
       setAllListings(unifiedListings)
-
-      if (typeof window !== 'undefined') {
-        sessionStorage.setItem('allListingsData', JSON.stringify(unifiedListings))
-      }
     } catch (err: any) {
       console.error('Error fetching all listings:', err)
       setError(err.message || 'Failed to load listings. Please try again.')

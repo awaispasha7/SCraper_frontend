@@ -30,37 +30,8 @@ interface ListingsData {
 function DashboardContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  // Initialize data from sessionStorage if available (for navigation persistence)
-  const [data, setData] = useState<ListingsData | null>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = sessionStorage.getItem('listingsData')
-      if (cached) {
-        try {
-          return JSON.parse(cached)
-        } catch (e) {
-          return null
-        }
-      }
-    }
-    return null
-  })
-  const [loading, setLoading] = useState(() => {
-    // Don't show loading if we have cached data
-    if (typeof window !== 'undefined') {
-      const cached = sessionStorage.getItem('listingsData')
-      if (cached) {
-        try {
-          const parsed = JSON.parse(cached)
-          if (parsed && parsed.listings && parsed.listings.length > 0) {
-            return false // Don't show loading if we have cached data
-          }
-        } catch (e) {
-          // Ignore parse errors
-        }
-      }
-    }
-    return true
-  })
+  const [data, setData] = useState<ListingsData | null>(null)
+  const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [checkingAuth, setCheckingAuth] = useState(true)
@@ -493,15 +464,6 @@ function DashboardContent() {
       }
 
       setData(normalizedResult)
-
-      // Cache data in sessionStorage for navigation persistence
-      if (typeof window !== 'undefined') {
-        try {
-          sessionStorage.setItem('listingsData', JSON.stringify(normalizedResult))
-        } catch (e) {
-          // Ignore storage errors
-        }
-      }
       setLastFetchTime(new Date())
       setError(null)
 

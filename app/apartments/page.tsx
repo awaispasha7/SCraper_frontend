@@ -43,19 +43,7 @@ interface ApartmentListingsData {
 
 function ApartmentsPageContent() {
   const router = useRouter()
-  const [data, setData] = useState<ApartmentListingsData | null>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = sessionStorage.getItem('apartmentsListingsData')
-      if (cached) {
-        try {
-          return JSON.parse(cached)
-        } catch (e) {
-          return null
-        }
-      }
-    }
-    return null
-  })
+  const [data, setData] = useState<ApartmentListingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
@@ -215,11 +203,6 @@ function ApartmentsPageContent() {
                 }))
               }
               setData(normalizedResult)
-              if (typeof window !== 'undefined') {
-                try {
-                  sessionStorage.setItem('apartmentsListingsData', JSON.stringify(normalizedResult))
-                } catch (e) { }
-              }
             } else {
               setSyncProgress(`🔍 Searching... ${newCount} leads found so far`)
             }
@@ -255,14 +238,6 @@ function ApartmentsPageContent() {
 
       setError(null)
 
-      // Clear sessionStorage cache if forcing refresh
-      if (forceRefresh && typeof window !== 'undefined') {
-        try {
-          sessionStorage.removeItem('apartmentsListingsData')
-        } catch (e) {
-          // Ignore storage errors
-        }
-      }
 
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000)

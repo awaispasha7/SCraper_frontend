@@ -42,20 +42,7 @@ interface TruliaListingsData {
 
 function TruliaListingsPageContent() {
   const router = useRouter()
-  // Initialize data from sessionStorage if available (for navigation persistence)
-  const [data, setData] = useState<TruliaListingsData | null>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = sessionStorage.getItem('truliaListingsData')
-      if (cached) {
-        try {
-          return JSON.parse(cached)
-        } catch (e) {
-          return null
-        }
-      }
-    }
-    return null
-  })
+  const [data, setData] = useState<TruliaListingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isStartingScraper, setIsStartingScraper] = useState(false)
@@ -392,15 +379,6 @@ function TruliaListingsPageContent() {
       }
 
       setData(normalizedResult)
-
-      // Cache data in sessionStorage for navigation persistence
-      if (typeof window !== 'undefined') {
-        try {
-          sessionStorage.setItem('truliaListingsData', JSON.stringify(normalizedResult))
-        } catch (e) {
-          // Ignore storage errors
-        }
-      }
     } catch (err: any) {
       if (err.name === 'AbortError') {
         setError('Request timed out. Please try again.')

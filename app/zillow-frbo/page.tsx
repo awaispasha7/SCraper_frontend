@@ -37,19 +37,7 @@ interface ZillowFRBOListingsData {
 
 function ZillowFRBOPageContent() {
   const router = useRouter()
-  const [data, setData] = useState<ZillowFRBOListingsData | null>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = sessionStorage.getItem('zillowFRBOListingsData')
-      if (cached) {
-        try {
-          return JSON.parse(cached)
-        } catch (e) {
-          return null
-        }
-      }
-    }
-    return null
-  })
+  const [data, setData] = useState<ZillowFRBOListingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isStartingScraper, setIsStartingScraper] = useState(false)
@@ -246,14 +234,6 @@ function ZillowFRBOPageContent() {
       }
 
       setData(normalizedResult)
-
-      if (typeof window !== 'undefined') {
-        try {
-          sessionStorage.setItem('zillowFRBOListingsData', JSON.stringify(normalizedResult))
-        } catch (e) {
-          // Ignore storage errors
-        }
-      }
     } catch (err: any) {
       if (err.name === 'AbortError') {
         setError('Request timed out. Please try again.')

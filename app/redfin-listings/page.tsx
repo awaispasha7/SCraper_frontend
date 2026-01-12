@@ -40,20 +40,7 @@ interface RedfinListingsData {
 
 function RedfinListingsPageContent() {
   const router = useRouter()
-  // Initialize data from sessionStorage if available (for navigation persistence)
-  const [data, setData] = useState<RedfinListingsData | null>(() => {
-    if (typeof window !== 'undefined') {
-      const cached = sessionStorage.getItem('redfinListingsData')
-      if (cached) {
-        try {
-          return JSON.parse(cached)
-        } catch (e) {
-          return null
-        }
-      }
-    }
-    return null
-  })
+  const [data, setData] = useState<RedfinListingsData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [isStartingScraper, setIsStartingScraper] = useState(false)
@@ -344,15 +331,6 @@ function RedfinListingsPageContent() {
   const fetchListings = async () => {
     try {
       // Check if we're returning from owner-info - if so, use cached data and don't fetch
-      const returningFromOwnerInfo = typeof window !== 'undefined' &&
-        (sessionStorage.getItem('returningFromOwnerInfo') || sessionStorage.getItem('preventScrollRestore'))
-
-      if (returningFromOwnerInfo && data && data.listings && data.listings.length > 0) {
-        // Use cached data, don't fetch
-        setLoading(false)
-        return
-      }
-
       // Don't set loading to true if we already have data (prevents clearing during navigation)
       const hasExistingData = data && data.listings && data.listings.length > 0
       if (!hasExistingData) {
@@ -400,15 +378,6 @@ function RedfinListingsPageContent() {
       }
 
       setData(normalizedResult)
-
-      // Cache data in sessionStorage for navigation persistence
-      if (typeof window !== 'undefined') {
-        try {
-          sessionStorage.setItem('redfinListingsData', JSON.stringify(normalizedResult))
-        } catch (e) {
-          // Ignore storage errors
-        }
-      }
     } catch (err: any) {
       if (err.name === 'AbortError') {
         setError('Request timed out. Please try again.')
