@@ -413,10 +413,47 @@ export default function UrlScraperInput({
         }
         
         // Count processed listings (both saved and updated)
+        // Check for various save messages from different scrapers:
+        // - Hotpads: "SUPABASE BATCH SAVED: X items written to database"
+        // - FSBO: "Saved to Supabase: {address}"
+        // - Trulia: "[OK] Saved to Supabase: {address}"
+        // - Zillow FRBO: "✅ Saved to Supabase: {address}"
+        // - Zillow FSBO: "Successfully uploaded: {address}"
+        // - Redfin: "Uploaded to Supabase (ID: {id}): {address}"
+        // - Apartments: "📤 Uploaded X items to Supabase" (DEBUG level, but handle if present)
         const msgLower = msg.toLowerCase()
-        if (msgLower.includes('saved to supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+        
+        // Hotpads batch save - extract count from "SUPABASE BATCH SAVED: X items written to database"
+        if (msgLower.includes('supabase batch saved') && msgLower.includes('items written to database')) {
+          const match = msg.match(/(\d+)\s+items?\s+written\s+to\s+database/i)
+          if (match) {
+            const count = parseInt(match[1], 10)
+            newProcessedCount += count
+          }
+        }
+        // Apartments batch upload (DEBUG level, but handle if present)
+        else if (msgLower.includes('uploaded') && msgLower.includes('items to supabase')) {
+          const match = msg.match(/(\d+)\s+items?\s+to\s+supabase/i)
+          if (match) {
+            const count = parseInt(match[1], 10)
+            newProcessedCount += count
+          }
+        }
+        // Redfin: "Uploaded to Supabase"
+        else if (msgLower.includes('uploaded to supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
           newProcessedCount++
-        } else if (msgLower.includes('updated in supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+        }
+        // Zillow FSBO: "Successfully uploaded"
+        else if (msgLower.includes('successfully uploaded') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+          newProcessedCount++
+        }
+        // Other scrapers: single-item saves (FSBO, Trulia, Zillow FRBO)
+        else if ((msgLower.includes('saved to supabase') || msgLower.includes('[ok] saved to supabase')) 
+                 && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
+          newProcessedCount++
+        } 
+        // Updated messages
+        else if (msgLower.includes('updated in supabase') && !msgLower.includes('failed') && !msgLower.includes('error') && !msgLower.includes('warning')) {
           newProcessedCount++
         }
       }
