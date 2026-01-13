@@ -51,7 +51,8 @@ export default function EnrichmentLogPage() {
     const fetchStats = async () => {
         try {
             const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
-            const res = await fetch(`${backendUrl}/api/enrichment-stats`)
+            // Add timestamp to prevent browser caching
+            const res = await fetch(`${backendUrl}/api/enrichment-stats?t=${new Date().getTime()}`)
             if (res.ok) {
                 const data = await res.json()
                 setStats(data)
