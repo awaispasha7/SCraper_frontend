@@ -194,7 +194,7 @@ export default function EnrichmentLogPage() {
         <div className="min-h-screen bg-gray-50 pb-12">
             {/* Header */}
             <nav className="bg-white shadow-sm border-b border-gray-200 mb-8 py-4">
-                <div className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8 flex flex-col items-center gap-4">
+                <div className="max-w-screen-2xl mx-auto px-3 sm:px-4 lg:px-8 flex flex-col items-center gap-4">
                     <div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-4">
                         <button
                             onClick={triggerEnrichment}
@@ -224,7 +224,7 @@ export default function EnrichmentLogPage() {
                 </div>
             </nav>
 
-            <main className="max-w-7xl mx-auto px-3 sm:px-4 lg:px-8">
+            <main className="max-w-screen-2xl mx-auto px-3 sm:px-4 lg:px-8">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 sm:gap-6 mb-6">
                     <div className="overflow-x-auto w-full md:w-auto">
                         <div className="flex bg-white p-1 rounded-xl shadow-sm border border-gray-200 min-w-fit">
