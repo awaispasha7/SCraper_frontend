@@ -19,6 +19,7 @@ export async function GET() {
           .from('redfin_listings')
           .select('*')
           .order('id', { ascending: true })
+          .limit(10000) // Increase limit to fetch all listings (Supabase default is 1000)
 
         if (!error && listings && listings.length > 0) {
           console.log(`✅ Found ${listings.length} Redfin listings in Supabase`)
