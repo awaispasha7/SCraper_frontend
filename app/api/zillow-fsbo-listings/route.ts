@@ -19,6 +19,7 @@ export async function GET() {
         let page = 0
         const pageSize = 1000 // Supabase max per request
         let hasMore = true
+        let queryError: any = null
         
         while (hasMore) {
           const from = page * pageSize
@@ -32,6 +33,7 @@ export async function GET() {
           
           if (pageError) {
             console.error(`❌ Error fetching page ${page}:`, pageError)
+            queryError = pageError
             break
           }
           
@@ -56,7 +58,7 @@ export async function GET() {
         }
         
         const listings = allListings
-        const error = null
+        const error = queryError
 
         if (listings && listings.length > 0) {
           console.log(`✅ Found ${listings.length} total Zillow FSBO listings in Supabase`)
