@@ -90,6 +90,7 @@ function RedfinListingsPageContent() {
     if (!isScraperRunning) return
 
     let intervalId: NodeJS.Timeout | null = null
+    let hasCompleted = false // Prevent multiple completion triggers
 
     const pollScraperStatus = async () => {
       try {
@@ -99,26 +100,52 @@ function RedfinListingsPageContent() {
           const redfinStatus = statusData.redfin
           const isRunning = redfinStatus?.status === 'running'
 
-          if (!isRunning && isScraperRunning) {
-            // Scraper just finished
+          if (!isRunning && isScraperRunning && !hasCompleted) {
+            // Scraper just finished - only trigger once
+            hasCompleted = true
             setIsScraperRunning(false)
             
-            // Wait a moment for Supabase to sync, then refresh listings
-            setNotification({ message: '✅ Scraper completed! Refreshing listings...', type: 'success' })
-            
-            // Refresh listings after a short delay to ensure Supabase has updated data
-            setTimeout(() => {
-              fetchListings()
-              setNotification({ message: '✅ Listings updated from Supabase!', type: 'success' })
-              setTimeout(() => setNotification(null), 5000)
-            }, 2000) // 2 second delay for Supabase sync
-            
-            // Clear polling
+            // Clear polling immediately
             if (intervalId) {
               clearInterval(intervalId)
               intervalId = null
             }
-          } else if (isRunning) {
+            
+            // Wait a moment for Supabase to sync, then refresh listings
+            setNotification({ message: '✅ Scraper completed! Refreshing listings...', type: 'success' })
+            
+            // Force refresh listings after a delay to ensure Supabase has updated data
+            // Retry up to 3 times if needed (in case Supabase sync is slow)
+            let retryCount = 0
+            const maxRetries = 3
+            
+            const refreshListings = async () => {
+              try {
+                console.log(`[Redfin] Auto-refreshing listings from Supabase (attempt ${retryCount + 1}/${maxRetries})...`)
+                // Fetch fresh listings from Supabase with force refresh
+                await fetchListings(true)
+                // Note: data will be updated by fetchListings via setData
+                // We'll show a generic success message since we can't access the updated data here
+                console.log(`[Redfin] Successfully fetched listings from Supabase`)
+                setNotification({ message: '✅ Listings updated from Supabase!', type: 'success' })
+                setTimeout(() => setNotification(null), 5000)
+              } catch (err) {
+                console.error(`[Redfin] Error refreshing listings (attempt ${retryCount + 1}):`, err)
+                retryCount++
+                if (retryCount < maxRetries) {
+                  // Retry after 2 more seconds
+                  setTimeout(refreshListings, 2000)
+                } else {
+                  setNotification({ message: '⚠️ Failed to refresh listings. Please refresh manually.', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
+                  setLoading(false)
+                }
+              }
+            }
+            
+            // Start refresh after 3 seconds (increased from 2 to allow Supabase to sync)
+            setTimeout(refreshListings, 3000)
+          } else if (isRunning && !hasCompleted) {
             // Still running, continue polling
             if (!intervalId) {
               intervalId = setInterval(pollScraperStatus, 3000) // Poll every 3 seconds
@@ -126,7 +153,7 @@ function RedfinListingsPageContent() {
           }
         }
       } catch (err) {
-        console.error('Error polling scraper status:', err)
+        console.error('[Redfin] Error polling scraper status:', err)
         // On error, stop polling but don't clear the running state immediately
         if (intervalId) {
           clearInterval(intervalId)
@@ -145,7 +172,7 @@ function RedfinListingsPageContent() {
         clearInterval(intervalId)
       }
     }
-  }, [isScraperRunning])
+  }, [isScraperRunning]) // fetchListings is stable, no need in deps
 
   const handleLogout = async () => {
     try {
@@ -394,12 +421,13 @@ function RedfinListingsPageContent() {
     }
   }, [data])
 
-  const fetchListings = async () => {
+  const fetchListings = async (forceRefresh = false) => {
     try {
       // Check if we're returning from owner-info - if so, use cached data and don't fetch
       // Don't set loading to true if we already have data (prevents clearing during navigation)
+      // UNLESS forceRefresh is true (for auto-refresh after scraper completes)
       const hasExistingData = data && data.listings && data.listings.length > 0
-      if (!hasExistingData) {
+      if (!hasExistingData || forceRefresh) {
         setLoading(true)
       }
       setError(null)
@@ -443,6 +471,7 @@ function RedfinListingsPageContent() {
         }))
       }
 
+      console.log(`[Redfin] Fetched ${normalizedResult.listings?.length || 0} listings from Supabase`)
       setData(normalizedResult)
     } catch (err: any) {
       if (err.name === 'AbortError') {
@@ -450,7 +479,7 @@ function RedfinListingsPageContent() {
       } else {
         setError(err.message || 'Failed to load listings')
       }
-      console.error('Error fetching Redfin listings:', err)
+      console.error('[Redfin] Error fetching listings:', err)
     } finally {
       setLoading(false)
     }
