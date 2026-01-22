@@ -13,16 +13,55 @@ export async function GET() {
 
     if (dbClient) {
       try {
-        // Fetch Redfin listings from Supabase
+        // Fetch Redfin listings from Supabase with pagination to get ALL listings
         console.log('📥 Fetching Redfin listings from Supabase...')
-        const { data: listings, error } = await dbClient
-          .from('redfin_listings')
-          .select('*')
-          .order('id', { ascending: true })
-          .limit(10000) // Increase limit to fetch all listings (Supabase default is 1000)
+        
+        // Fetch all listings using pagination (Supabase default limit is 1000, so we need to paginate)
+        let allListings: any[] = []
+        let page = 0
+        const pageSize = 1000 // Supabase max per request
+        let hasMore = true
+        
+        while (hasMore) {
+          const from = page * pageSize
+          const to = from + pageSize - 1
+          
+          const { data: pageListings, error: pageError } = await dbClient
+            .from('redfin_listings')
+            .select('*')
+            .order('id', { ascending: true })
+            .range(from, to)
+          
+          if (pageError) {
+            console.error(`❌ Error fetching page ${page}:`, pageError)
+            break
+          }
+          
+          if (pageListings && pageListings.length > 0) {
+            allListings = allListings.concat(pageListings)
+            console.log(`📄 Fetched page ${page + 1}: ${pageListings.length} listings (total: ${allListings.length})`)
+            
+            // If we got fewer than pageSize, we've reached the end
+            if (pageListings.length < pageSize) {
+              hasMore = false
+            } else {
+              page++
+              // Safety limit: don't fetch more than 10,000 listings (10 pages)
+              if (page >= 10) {
+                console.warn('⚠️ Reached safety limit of 10,000 listings. If you have more, increase the limit.')
+                hasMore = false
+              }
+            }
+          } else {
+            hasMore = false
+          }
+        }
+        
+        const listings = allListings
+        const error = null
 
-        if (!error && listings && listings.length > 0) {
-          console.log(`✅ Found ${listings.length} Redfin listings in Supabase`)
+        if (listings && listings.length > 0) {
+          console.log(`✅ Found ${listings.length} total Redfin listings in Supabase`)
 
           // Get unique address_hashes for batch lookup (de-duplicated to reduce parameters)
           const uniqueHashes = Array.from(new Set(listings.map((l: any) => l.address_hash).filter(Boolean))) as string[]
