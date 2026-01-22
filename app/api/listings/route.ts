@@ -21,11 +21,54 @@ export async function GET() {
       )
     }
 
-    // Fetch listings from Supabase
-    let { data: listings, error } = await dbClient
-      .from('listings')
-      .select('id, address, price, beds, baths, square_feet, listing_link, time_of_post, owner_emails, owner_phones, owner_name, mailing_address, address_hash')
-      .order('id', { ascending: true })
+    // Fetch listings from Supabase with pagination to get ALL listings
+    console.log('📥 Fetching all listings from Supabase...')
+    
+    // Fetch all listings using pagination (Supabase default limit is 1000, so we need to paginate)
+    let allListings: any[] = []
+    let page = 0
+    const pageSize = 1000 // Supabase max per request
+    let hasMore = true
+    let queryError = null
+    
+    while (hasMore) {
+      const from = page * pageSize
+      const to = from + pageSize - 1
+      
+      const { data: pageListings, error: pageError } = await dbClient
+        .from('listings')
+        .select('id, address, price, beds, baths, square_feet, listing_link, time_of_post, owner_emails, owner_phones, owner_name, mailing_address, address_hash')
+        .order('id', { ascending: true })
+        .range(from, to)
+      
+      if (pageError) {
+        console.error(`❌ Error fetching page ${page}:`, pageError)
+        queryError = pageError
+        break
+      }
+      
+      if (pageListings && pageListings.length > 0) {
+        allListings = allListings.concat(pageListings)
+        console.log(`📄 Fetched page ${page + 1}: ${pageListings.length} listings (total: ${allListings.length})`)
+        
+        // If we got fewer than pageSize, we've reached the end
+        if (pageListings.length < pageSize) {
+          hasMore = false
+        } else {
+          page++
+          // Safety limit: don't fetch more than 10,000 listings (10 pages)
+          if (page >= 10) {
+            console.warn('⚠️ Reached safety limit of 10,000 listings. If you have more, increase the limit.')
+            hasMore = false
+          }
+        }
+      } else {
+        hasMore = false
+      }
+    }
+    
+    const listings = allListings
+    const error = queryError
 
     // Handle errors gracefully
     if (error) {
@@ -44,6 +87,8 @@ export async function GET() {
         listings: []
       })
     }
+    
+    console.log(`✅ Found ${listings.length} total listings in Supabase`)
 
     // Get all address_hashes for batch lookup
     const addressHashes = listings.map((l: any) => l.address_hash).filter(Boolean)
