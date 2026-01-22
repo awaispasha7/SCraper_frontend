@@ -216,6 +216,18 @@ export default function UrlScraperInput({
           const apiStatus = data[statusKey]
           const isBackendRunning = apiStatus?.status === 'running'
 
+          // Fallback: If backend is idle but local status is still running, reset it
+          // This handles cases where status polling might have missed the completion
+          if (!isBackendRunning && scrapeStatus.status === 'running' && apiStatus?.last_run) {
+            // Backend has finished but we haven't updated yet - check if we have result info
+            const lastResult = apiStatus?.last_result
+            if (!lastResult) {
+              // No result yet, but backend is idle - reset to allow re-scraping
+              setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
+              setValidationError(null)
+            }
+          }
+          
           // If backend says scraper is no longer running, check result and show message
           if (!isBackendRunning && scrapeStatus.status === 'running') {
             const lastResult = apiStatus?.last_result
@@ -229,7 +241,7 @@ export default function UrlScraperInput({
                 if (onSuccess && scrapeStatus.platform) {
                   onSuccess(scrapeStatus.platform, url)
                 }
-                // Reset to idle after 5 seconds
+                // Reset to idle after 2 seconds (reduced from 5) so user can scrape again sooner
                 setTimeout(() => {
                   setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
                   setLogs([])
@@ -237,6 +249,7 @@ export default function UrlScraperInput({
                   setBaselineCount(null)
                   setExpectedTotal(null)
                   setProcessedCount(0)
+                  setValidationError(null) // Clear any validation errors
                   // Clear sessionStorage
                   if (scrapeStatus.platform && typeof window !== 'undefined') {
                     const key = getProgressStorageKey(scrapeStatus.platform)
@@ -245,7 +258,7 @@ export default function UrlScraperInput({
                     }
                   }
                   // Keep retrievedUrl visible even after scraping completes so user can see what was scraped
-                }, 5000)
+                }, 2000) // Reduced to 2 seconds for faster re-scraping
               } else {
                 const errorMsg = lastResult.error || `Scraping failed with return code ${lastResult.returncode || 'unknown'}`
                 setScrapeStatus({ 
@@ -257,9 +270,14 @@ export default function UrlScraperInput({
                 if (onError) {
                   onError(errorMsg)
                 }
+                // Reset to idle after 5 seconds even on error so user can try again
+                setTimeout(() => {
+                  setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
+                  setValidationError(null)
+                }, 5000)
               }
             } else {
-              // No result info, just reset
+              // No result info, just reset immediately so user can scrape again
               setScrapeStatus({ status: 'idle', message: '', platform: scrapeStatus.platform })
               setValidationError(null)
               setLogs([])
