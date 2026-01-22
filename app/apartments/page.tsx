@@ -9,6 +9,8 @@ import UrlScraperInput from '@/app/components/UrlScraperInput'
 import { createClient } from '@/lib/supabase-client'
 import { getDefaultUrlForPlatform } from '@/lib/url-validation'
 
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
+
 interface ApartmentListing {
   id: number
   address: string
