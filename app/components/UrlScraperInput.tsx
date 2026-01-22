@@ -38,6 +38,7 @@ export default function UrlScraperInput({
   expectedPlatform,
   onSuccess,
   onError,
+  onStop,
   placeholder = 'Paste any property listing URL here...',
   showDefaultValue = true,
   className = ''
