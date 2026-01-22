@@ -21,6 +21,7 @@ interface UrlScraperInputProps {
   expectedPlatform?: string
   onSuccess?: (platform: string, url: string) => void
   onError?: (error: string) => void
+  onStop?: () => void // Callback when scraper is stopped
   placeholder?: string
   showDefaultValue?: boolean
   className?: string
@@ -933,6 +934,10 @@ export default function UrlScraperInput({
         setScrapeStatus({ status: 'idle', message: 'Scraper stop requested', platform: scrapeStatus.platform })
         setValidationError(null)
         setShowStopConfirmModal(false)
+        // Call onStop callback if provided (for immediate listing refresh)
+        if (onStop) {
+          onStop()
+        }
         // Status will be updated by the polling effect
       } else {
         setValidationError(data.error || 'Failed to stop scraper')

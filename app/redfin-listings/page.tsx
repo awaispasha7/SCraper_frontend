@@ -86,11 +86,14 @@ function RedfinListingsPageContent() {
   }
 
   // Poll scraper status and auto-refresh listings when scraper completes
+  // Also polls listings in real-time during scraping to show updates
   useEffect(() => {
     if (!isScraperRunning) return
 
-    let intervalId: NodeJS.Timeout | null = null
+    let statusIntervalId: NodeJS.Timeout | null = null
+    let listingsIntervalId: NodeJS.Timeout | null = null
     let hasCompleted = false // Prevent multiple completion triggers
+    let lastListingCount = data?.listings?.length || 0
 
     const pollScraperStatus = async () => {
       try {
@@ -105,36 +108,38 @@ function RedfinListingsPageContent() {
             hasCompleted = true
             setIsScraperRunning(false)
             
-            // Clear polling immediately
-            if (intervalId) {
-              clearInterval(intervalId)
-              intervalId = null
+            // Clear all polling immediately
+            if (statusIntervalId) {
+              clearInterval(statusIntervalId)
+              statusIntervalId = null
+            }
+            if (listingsIntervalId) {
+              clearInterval(listingsIntervalId)
+              listingsIntervalId = null
             }
             
-            // Wait a moment for Supabase to sync, then refresh listings
-            setNotification({ message: '✅ Scraper completed! Refreshing listings...', type: 'success' })
+            // Immediately refresh listings (no delay - data should already be in Supabase)
+            setNotification({ message: '✅ Scraper stopped! Refreshing listings...', type: 'success' })
             
-            // Force refresh listings after a delay to ensure Supabase has updated data
-            // Retry up to 3 times if needed (in case Supabase sync is slow)
+            // Force refresh listings immediately with retry
             let retryCount = 0
             const maxRetries = 3
             
             const refreshListings = async () => {
               try {
                 console.log(`[Redfin] Auto-refreshing listings from Supabase (attempt ${retryCount + 1}/${maxRetries})...`)
-                // Fetch fresh listings from Supabase with force refresh
+                // Fetch fresh listings from Supabase with force refresh and cache busting
                 await fetchListings(true)
-                // Note: data will be updated by fetchListings via setData
-                // We'll show a generic success message since we can't access the updated data here
-                console.log(`[Redfin] Successfully fetched listings from Supabase`)
-                setNotification({ message: '✅ Listings updated from Supabase!', type: 'success' })
+                const newCount = data?.listings?.length || 0
+                console.log(`[Redfin] Successfully fetched ${newCount} listings from Supabase`)
+                setNotification({ message: `✅ Listings updated! Showing ${newCount} listings from Supabase.`, type: 'success' })
                 setTimeout(() => setNotification(null), 5000)
               } catch (err) {
                 console.error(`[Redfin] Error refreshing listings (attempt ${retryCount + 1}):`, err)
                 retryCount++
                 if (retryCount < maxRetries) {
-                  // Retry after 2 more seconds
-                  setTimeout(refreshListings, 2000)
+                  // Retry after 1 second (faster retry)
+                  setTimeout(refreshListings, 1000)
                 } else {
                   setNotification({ message: '⚠️ Failed to refresh listings. Please refresh manually.', type: 'info' })
                   setTimeout(() => setNotification(null), 5000)
@@ -143,36 +148,73 @@ function RedfinListingsPageContent() {
               }
             }
             
-            // Start refresh after 3 seconds (increased from 2 to allow Supabase to sync)
-            setTimeout(refreshListings, 3000)
+            // Start refresh immediately (no delay)
+            refreshListings()
           } else if (isRunning && !hasCompleted) {
             // Still running, continue polling
-            if (!intervalId) {
-              intervalId = setInterval(pollScraperStatus, 3000) // Poll every 3 seconds
+            if (!statusIntervalId) {
+              statusIntervalId = setInterval(pollScraperStatus, 3000) // Poll every 3 seconds
             }
           }
         }
       } catch (err) {
         console.error('[Redfin] Error polling scraper status:', err)
         // On error, stop polling but don't clear the running state immediately
-        if (intervalId) {
-          clearInterval(intervalId)
-          intervalId = null
+        if (statusIntervalId) {
+          clearInterval(statusIntervalId)
+          statusIntervalId = null
+        }
+        if (listingsIntervalId) {
+          clearInterval(listingsIntervalId)
+          listingsIntervalId = null
         }
       }
     }
 
-    // Start polling immediately, then every 3 seconds
+    // Poll listings in real-time during scraping (every 5 seconds to reduce load)
+    const pollListingsDuringScraping = async () => {
+      try {
+        const response = await fetch('/api/redfin-listings?' + new Date().getTime(), {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache',
+          }
+        })
+        if (response.ok) {
+          const result = await response.json()
+          const newCount = result.listings?.length || 0
+          
+          // Only update if count increased (new listings added)
+          if (newCount > lastListingCount) {
+            console.log(`[Redfin] Real-time update: ${newCount} listings (was ${lastListingCount})`)
+            setData(result)
+            lastListingCount = newCount
+            setNotification({ message: `🔄 ${newCount} listings found so far...`, type: 'info' })
+            setTimeout(() => setNotification(null), 3000)
+          }
+        }
+      } catch (err) {
+        // Silently fail - don't spam errors during polling
+      }
+    }
+
+    // Start status polling immediately, then every 3 seconds
     pollScraperStatus()
-    intervalId = setInterval(pollScraperStatus, 3000)
+    statusIntervalId = setInterval(pollScraperStatus, 3000)
+    
+    // Start listings polling every 5 seconds during scraping (real-time updates)
+    listingsIntervalId = setInterval(pollListingsDuringScraping, 5000)
 
     // Cleanup on unmount or when scraper stops
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId)
+      if (statusIntervalId) {
+        clearInterval(statusIntervalId)
+      }
+      if (listingsIntervalId) {
+        clearInterval(listingsIntervalId)
       }
     }
-  }, [isScraperRunning]) // fetchListings is stable, no need in deps
+  }, [isScraperRunning, data?.listings?.length]) // Include data length to track changes
 
   const handleLogout = async () => {
     try {
@@ -436,11 +478,15 @@ function RedfinListingsPageContent() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-      const response = await fetch('/api/redfin-listings?' + new Date().getTime(), {
+      // Add timestamp and random number for aggressive cache busting
+      const cacheBuster = `t=${Date.now()}&r=${Math.random()}`
+      const response = await fetch(`/api/redfin-listings?${cacheBuster}`, {
         cache: 'no-store',
         signal: controller.signal,
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
         // Add priority hint for faster loading
         priority: 'high'
@@ -705,6 +751,24 @@ function RedfinListingsPageContent() {
                   setIsScraperRunning(true)
                   setNotification({ message: '🔄 Scraper started! Listings will auto-refresh when complete.', type: 'info' })
                   setTimeout(() => setNotification(null), 5000)
+                }}
+                onStop={() => {
+                  // Immediately refresh listings when scraper is stopped
+                  console.log('[Redfin] Scraper stopped - refreshing listings immediately...')
+                  setIsScraperRunning(false)
+                  setNotification({ message: '🛑 Scraper stopped! Refreshing listings...', type: 'info' })
+                  // Wait 1 second for Supabase to sync, then refresh
+                  setTimeout(async () => {
+                    try {
+                      await fetchListings(true)
+                      setNotification({ message: '✅ Listings refreshed from Supabase!', type: 'success' })
+                      setTimeout(() => setNotification(null), 5000)
+                    } catch (err) {
+                      console.error('[Redfin] Error refreshing after stop:', err)
+                      setNotification({ message: '⚠️ Failed to refresh. Please refresh manually.', type: 'info' })
+                      setTimeout(() => setNotification(null), 5000)
+                    }
+                  }, 1000)
                 }}
                 onError={(error) => {
                   console.error('URL validation error:', error)
