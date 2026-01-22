@@ -48,6 +48,8 @@ function HotpadsPageContent() {
   const [searchQuery, setSearchQuery] = useState('')
   const [currentPage, setCurrentPage] = useState(1) // Current page number
   const listingsPerPage = 20 // Listings per page
+  const [isScraperRunning, setIsScraperRunning] = useState(false) // Track scraper status
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null) // Notification state
 
   // Handle starting scraper with default URL
   const handleStartScrapingWithDefault = async () => {
@@ -73,14 +75,78 @@ function HotpadsPageContent() {
         throw new Error(data.error || 'Failed to start scraper')
       }
 
-      // Success - refresh listings after a delay
-      setTimeout(() => fetchListings(), 5000)
+      // Mark scraper as running and start polling for completion
+      setIsScraperRunning(true)
+      setNotification({ message: '🔄 Scraper started! Listings will auto-refresh when complete.', type: 'info' })
+      setTimeout(() => setNotification(null), 5000)
     } catch (error: any) {
       setError(error.message || 'Failed to start scraper')
     } finally {
       setIsStartingScraper(false)
     }
   }
+
+  // Poll scraper status and auto-refresh listings when scraper completes
+  useEffect(() => {
+    if (!isScraperRunning) return
+
+    let intervalId: NodeJS.Timeout | null = null
+
+    const pollScraperStatus = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+        if (res.ok) {
+          const statusData = await res.json()
+          const hotpadsStatus = statusData.hotpads
+          const isRunning = hotpadsStatus?.status === 'running'
+
+          if (!isRunning && isScraperRunning) {
+            // Scraper just finished
+            setIsScraperRunning(false)
+            
+            // Wait a moment for Supabase to sync, then refresh listings
+            setNotification({ message: '✅ Scraper completed! Refreshing listings...', type: 'success' })
+            
+            // Refresh listings after a short delay to ensure Supabase has updated data
+            setTimeout(() => {
+              fetchListings()
+              setNotification({ message: '✅ Listings updated from Supabase!', type: 'success' })
+              setTimeout(() => setNotification(null), 5000)
+            }, 2000) // 2 second delay for Supabase sync
+            
+            // Clear polling
+            if (intervalId) {
+              clearInterval(intervalId)
+              intervalId = null
+            }
+          } else if (isRunning) {
+            // Still running, continue polling
+            if (!intervalId) {
+              intervalId = setInterval(pollScraperStatus, 3000) // Poll every 3 seconds
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error polling scraper status:', err)
+        // On error, stop polling but don't clear the running state immediately
+        if (intervalId) {
+          clearInterval(intervalId)
+          intervalId = null
+        }
+      }
+    }
+
+    // Start polling immediately, then every 3 seconds
+    pollScraperStatus()
+    intervalId = setInterval(pollScraperStatus, 3000)
+
+    // Cleanup on unmount or when scraper stops
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId)
+      }
+    }
+  }, [isScraperRunning])
 
   // Handle deep-linking from enrichment log
   useEffect(() => {
@@ -464,7 +530,10 @@ function HotpadsPageContent() {
                 showDefaultValue={true}
                 placeholder="https://hotpads.com/chicago-il/apartments-for-rent"
                 onSuccess={(platform, url) => {
-                  fetchListings()
+                  // Start polling for scraper completion
+                  setIsScraperRunning(true)
+                  setNotification({ message: '🔄 Scraper started! Listings will auto-refresh when complete.', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
                 }}
                 onError={(error) => {
                   console.error('URL validation error:', error)
@@ -474,6 +543,27 @@ function HotpadsPageContent() {
           </div>
         </div>
       </header>
+
+      {/* Notification Banner */}
+      {notification && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className={`rounded-lg shadow-md p-4 border ${
+            notification.type === 'success' 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-blue-50 border-blue-200 text-blue-800'
+          }`}>
+            <div className="flex items-center justify-between">
+              <p className="font-medium">{notification.message}</p>
+              <button
+                onClick={() => setNotification(null)}
+                className="ml-4 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">

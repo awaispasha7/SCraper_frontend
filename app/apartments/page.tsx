@@ -52,6 +52,8 @@ function ApartmentsPageContent() {
   const [lastRefreshTime, setLastRefreshTime] = useState<Date | null>(null) // Track when scraper was last run
   const [syncProgress, setSyncProgress] = useState<string>('') // Progress message during sync
   const [isSyncing, setIsSyncing] = useState(false) // Track if sync is in progress
+  const [isScraperRunning, setIsScraperRunning] = useState(false) // Track scraper status
+  const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null) // Notification state
 
   const handleLogout = async () => {
     try {
@@ -172,6 +174,68 @@ function ApartmentsPageContent() {
       }
     }
   }, [data])
+
+  // Poll scraper status and auto-refresh listings when scraper completes
+  useEffect(() => {
+    if (!isScraperRunning) return
+
+    let intervalId: NodeJS.Timeout | null = null
+
+    const pollScraperStatus = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+        if (res.ok) {
+          const statusData = await res.json()
+          const apartmentsStatus = statusData.apartments
+          const isRunning = apartmentsStatus?.status === 'running'
+
+          if (!isRunning && isScraperRunning) {
+            // Scraper just finished
+            setIsScraperRunning(false)
+            
+            // Wait a moment for Supabase to sync, then refresh listings
+            setNotification({ message: '✅ Scraper completed! Refreshing listings...', type: 'success' })
+            
+            // Refresh listings after a short delay to ensure Supabase has updated data
+            setTimeout(() => {
+              fetchListings(true)
+              setNotification({ message: '✅ Listings updated from Supabase!', type: 'success' })
+              setTimeout(() => setNotification(null), 5000)
+            }, 2000) // 2 second delay for Supabase sync
+            
+            // Clear polling
+            if (intervalId) {
+              clearInterval(intervalId)
+              intervalId = null
+            }
+          } else if (isRunning) {
+            // Still running, continue polling
+            if (!intervalId) {
+              intervalId = setInterval(pollScraperStatus, 3000) // Poll every 3 seconds
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error polling scraper status:', err)
+        // On error, stop polling but don't clear the running state immediately
+        if (intervalId) {
+          clearInterval(intervalId)
+          intervalId = null
+        }
+      }
+    }
+
+    // Start polling immediately, then every 3 seconds
+    pollScraperStatus()
+    intervalId = setInterval(pollScraperStatus, 3000)
+
+    // Cleanup on unmount or when scraper stops
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId)
+      }
+    }
+  }, [isScraperRunning])
 
   // Poll for listings while syncing - updates UI in real-time
   const pollForListings = (interval: number = 3000, maxAttempts: number = 120): ReturnType<typeof setInterval> => {
@@ -523,6 +587,10 @@ function ApartmentsPageContent() {
                 showDefaultValue={true}
                 placeholder="https://www.apartments.com/chicago-il/for-rent-by-owner/"
                 onSuccess={(platform, url) => {
+                  // Start polling for scraper completion
+                  setIsScraperRunning(true)
+                  setNotification({ message: '🔄 Scraper started! Listings will auto-refresh when complete.', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
                   setSyncProgress(`✅ Scraper started for ${platform}. Scraping ${url}...`)
                   setIsSyncing(true)
                   // Start polling for updates
@@ -542,6 +610,27 @@ function ApartmentsPageContent() {
           </div>
         </div>
       </header>
+
+      {/* Notification Banner */}
+      {notification && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className={`rounded-lg shadow-md p-4 border ${
+            notification.type === 'success' 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-blue-50 border-blue-200 text-blue-800'
+          }`}>
+            <div className="flex items-center justify-between">
+              <p className="font-medium">{notification.message}</p>
+              <button
+                onClick={() => setNotification(null)}
+                className="ml-4 text-gray-400 hover:text-gray-600"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
