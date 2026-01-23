@@ -49,6 +49,7 @@ function RedfinListingsPageContent() {
   const listingsPerPage = 20 // Listings per page
   const [isScraperRunning, setIsScraperRunning] = useState(false) // Track scraper status
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null) // Notification state
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null) // Track when data was last fetched
 
   // Handle starting scraper with default URL
   const handleStartScrapingWithDefault = async () => {
@@ -474,6 +475,7 @@ function RedfinListingsPageContent() {
 
       console.log(`[Redfin] Fetched ${normalizedResult.listings?.length || 0} listings from Supabase`)
       setData(normalizedResult)
+      setLastFetchTime(new Date()) // Update last fetch time to current time
     } catch (err: any) {
       if (err.name === 'AbortError') {
         setError('Request timed out. Please try again.')
@@ -777,19 +779,29 @@ function RedfinListingsPageContent() {
           <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
             <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
             <div className="text-lg sm:text-xl font-bold">
-              {data?.scrape_date ? (() => {
-                const date = new Date(data.scrape_date)
+              {lastFetchTime ? lastFetchTime.toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+              }) : (data?.scrape_date ? (() => {
+                // Fallback to scrape_date if lastFetchTime not set yet
+                const date = new Date(data.scrape_date + 'T00:00:00') // Add time to avoid timezone issues
                 return date.toLocaleString('en-US', {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
                   hour: '2-digit',
-                  minute: '2-digit'
+                  minute: '2-digit',
+                  hour12: true
                 })
-              })() : 'N/A'}
+              })() : 'N/A')}
             </div>
             <div className="text-gray-500 text-xs mt-1 font-medium">
-              Last scraped date
+              {lastFetchTime ? 'Last refreshed' : 'Last scraped date'}
             </div>
           </div>
         </div>

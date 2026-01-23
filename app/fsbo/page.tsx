@@ -1378,10 +1378,18 @@ function DashboardContent() {
           <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
             <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
             <div className="text-lg sm:text-xl font-bold">
-              {data?.scrape_timestamp ? formatDate(data.scrape_timestamp) : 'N/A'}
+              {lastFetchTime ? lastFetchTime.toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+              }) : (data?.scrape_timestamp ? formatDate(data.scrape_timestamp) : 'N/A')}
             </div>
             <div className="text-gray-500 text-xs mt-1 font-medium">
-              Last scraped date
+              {lastFetchTime ? 'Last refreshed' : 'Last scraped date'}
             </div>
           </div>
         </div>

@@ -292,6 +292,7 @@ function ApartmentsPageContent() {
                 }))
               }
               setData(normalizedResult)
+              setLastRefreshTime(new Date()) // Update last refresh time to current time
             } else {
               setSyncProgress(`🔍 Searching... ${newCount} leads found so far`)
             }
@@ -679,19 +680,29 @@ function ApartmentsPageContent() {
           <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
             <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
             <div className="text-lg sm:text-xl font-bold">
-              {data?.scrape_date ? (() => {
-                const date = new Date(data.scrape_date)
+              {lastRefreshTime ? lastRefreshTime.toLocaleString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                hour12: true
+              }) : (data?.scrape_date ? (() => {
+                // Fallback to scrape_date if lastRefreshTime not set yet
+                const date = new Date(data.scrape_date + 'T00:00:00') // Add time to avoid timezone issues
                 return date.toLocaleString('en-US', {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
                   hour: '2-digit',
-                  minute: '2-digit'
+                  minute: '2-digit',
+                  hour12: true
                 })
-              })() : 'N/A'}
+              })() : 'N/A')}
             </div>
             <div className="text-gray-500 text-xs mt-1 font-medium">
-              Last scraped date
+              {lastRefreshTime ? 'Last refreshed' : 'Last scraped date'}
             </div>
           </div>
         </div>

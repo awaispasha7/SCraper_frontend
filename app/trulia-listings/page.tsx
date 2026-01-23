@@ -51,6 +51,7 @@ function TruliaListingsPageContent() {
   const listingsPerPage = 20 // Listings per page
   const [isScraperRunning, setIsScraperRunning] = useState(false) // Track scraper status
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null) // Notification state
+  const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null) // Track when data was last fetched
 
   // Handle starting scraper with default URL
   const handleStartScrapingWithDefault = async () => {
@@ -160,24 +161,34 @@ function TruliaListingsPageContent() {
             let retryCount = 0
             const maxRetries = 5
             
-            const refreshAfterStop = async () => {
+            const refreshAfterStop = async (currentRetry = 0) => {
               try {
-                console.log(`[Trulia] Auto-refreshing listings after scraper stop (attempt ${retryCount + 1}/${maxRetries})...`)
+                console.log(`[Trulia] Auto-refreshing listings after scraper stop (attempt ${currentRetry + 1}/${maxRetries})...`)
                 await fetchListings(true) // Force refresh to get all latest listings from Supabase
                 
-                // Get updated count after state update
+                // Wait a bit for state to update, then check count
                 setTimeout(() => {
-                  const newCount = data?.listings?.length || 0
-                  console.log(`[Trulia] Successfully refreshed! Now showing ${newCount} listings from Supabase`)
-                  setNotification({ message: `✅ Scraper completed! Showing ${newCount} listings from Supabase.`, type: 'success' })
-                  setTimeout(() => setNotification(null), 5000)
-                }, 500)
+                  // Use a fresh fetch to get the actual count
+                  fetch('/api/trulia-listings?' + Date.now(), { cache: 'no-store' })
+                    .then(res => res.json())
+                    .then(result => {
+                      const newCount = result.listings?.length || result.total_listings || 0
+                      console.log(`[Trulia] Successfully refreshed! Now showing ${newCount} listings from Supabase`)
+                      setNotification({ message: `✅ Scraper completed! Showing ${newCount} listings from Supabase.`, type: 'success' })
+                      setTimeout(() => setNotification(null), 5000)
+                    })
+                    .catch(err => {
+                      console.error('[Trulia] Error getting count after refresh:', err)
+                      setNotification({ message: '✅ Scraper completed! Listings refreshed from Supabase.', type: 'success' })
+                      setTimeout(() => setNotification(null), 5000)
+                    })
+                }, 1000)
               } catch (err) {
-                console.error(`[Trulia] Error refreshing after scraper stop (attempt ${retryCount + 1}):`, err)
-                retryCount++
-                if (retryCount < maxRetries) {
+                console.error(`[Trulia] Error refreshing after scraper stop (attempt ${currentRetry + 1}):`, err)
+                const nextRetry = currentRetry + 1
+                if (nextRetry < maxRetries) {
                   // Retry with increasing delay
-                  setTimeout(refreshAfterStop, 2000 * retryCount)
+                  setTimeout(() => refreshAfterStop(nextRetry), 2000 * nextRetry)
                 } else {
                   setNotification({ message: '⚠️ Scraper stopped but failed to refresh. Click Refresh button.', type: 'info' })
                   setTimeout(() => setNotification(null), 5000)
@@ -515,6 +526,7 @@ function TruliaListingsPageContent() {
 
       setData(normalizedResult)
       setError(null)
+      setLastFetchTime(new Date()) // Update last fetch time to current time
       
       // Log success with count
       console.log(`[Trulia] ✅ Successfully loaded ${normalizedResult.listings.length} listings from Supabase`)
@@ -804,19 +816,29 @@ function TruliaListingsPageContent() {
             <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
               <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
               <div className="text-lg sm:text-xl font-bold">
-                {data?.scrape_date ? (() => {
-                  const date = new Date(data.scrape_date)
+                {lastFetchTime ? lastFetchTime.toLocaleString('en-US', {
+                  year: 'numeric',
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  second: '2-digit',
+                  hour12: true
+                }) : (data?.scrape_date ? (() => {
+                  // Fallback to scrape_date if lastFetchTime not set yet
+                  const date = new Date(data.scrape_date + 'T00:00:00') // Add time to avoid timezone issues
                   return date.toLocaleString('en-US', {
                     year: 'numeric',
                     month: 'short',
                     day: 'numeric',
                     hour: '2-digit',
-                    minute: '2-digit'
+                    minute: '2-digit',
+                    hour12: true
                   })
-                })() : 'N/A'}
+                })() : 'N/A')}
               </div>
               <div className="text-gray-500 text-xs mt-1 font-medium">
-                Last scraped date
+                {lastFetchTime ? 'Last refreshed' : 'Last scraped date'}
               </div>
             </div>
           </div>
