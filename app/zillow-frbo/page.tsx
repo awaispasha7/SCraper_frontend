@@ -82,140 +82,66 @@ function ZillowFRBOPageContent() {
     }
   }
 
-  // Poll scraper status and auto-refresh listings when scraper completes
-  // Also polls listings in real-time during scraping to show updates
+  // Webhook: Use Supabase real-time subscriptions instead of polling
   useEffect(() => {
-    if (!isScraperRunning) return
-
-    let statusIntervalId: NodeJS.Timeout | null = null
-    let listingsIntervalId: NodeJS.Timeout | null = null
-    let hasCompleted = false // Prevent multiple completion triggers
-    let lastListingCount = data?.listings?.length || 0
-
-    const pollScraperStatus = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
-        if (res.ok) {
-          const statusData = await res.json()
-          const zillowFrboStatus = statusData.zillow_frbo
-          const isRunning = zillowFrboStatus?.status === 'running'
-
-          if (!isRunning && isScraperRunning && !hasCompleted) {
-            // Scraper just finished - only trigger once
-            hasCompleted = true
-            setIsScraperRunning(false)
-            
-            // Clear all polling immediately
-            if (statusIntervalId) {
-              clearInterval(statusIntervalId)
-              statusIntervalId = null
-            }
-            if (listingsIntervalId) {
-              clearInterval(listingsIntervalId)
-              listingsIntervalId = null
-            }
-            
-            // Immediately refresh listings (no delay - data should already be in Supabase)
-            setNotification({ message: '✅ Scraper stopped! Refreshing listings...', type: 'success' })
-            
-            // Force refresh listings immediately with retry
-            let retryCount = 0
-            const maxRetries = 3
-            
-            const refreshListings = async () => {
-              try {
-                console.log(`[Zillow FRBO] Auto-refreshing listings from Supabase (attempt ${retryCount + 1}/${maxRetries})...`)
-                // Fetch fresh listings from Supabase with force refresh and cache busting
-                await fetchListings(true)
-                const newCount = data?.listings?.length || 0
-                console.log(`[Zillow FRBO] Successfully fetched ${newCount} listings from Supabase`)
-                setNotification({ message: `✅ Listings updated! Showing ${newCount} listings from Supabase.`, type: 'success' })
-                setTimeout(() => setNotification(null), 5000)
-              } catch (err) {
-                console.error(`[Zillow FRBO] Error refreshing listings (attempt ${retryCount + 1}):`, err)
-                retryCount++
-                if (retryCount < maxRetries) {
-                  // Retry after 1 second (faster retry)
-                  setTimeout(refreshListings, 1000)
-                } else {
-                  setNotification({ message: '⚠️ Failed to refresh listings. Please refresh manually.', type: 'info' })
-                  setTimeout(() => setNotification(null), 5000)
-                  setLoading(false)
-                }
-              }
-            }
-            
-            // Start refresh immediately (no delay)
-            refreshListings()
-          } else if (isRunning && !hasCompleted) {
-            // Still running, continue polling
-            if (!statusIntervalId) {
-              statusIntervalId = setInterval(pollScraperStatus, 3000) // Poll every 3 seconds
-            }
-          }
-        }
-      } catch (err) {
-        console.error('[Zillow FRBO] Error polling scraper status:', err)
-        // On error, stop polling but don't clear the running state immediately
-        if (statusIntervalId) {
-          clearInterval(statusIntervalId)
-          statusIntervalId = null
-        }
-        if (listingsIntervalId) {
-          clearInterval(listingsIntervalId)
-          listingsIntervalId = null
-        }
-      }
-    }
-
-    // Poll listings in real-time during scraping (every 5 seconds to reduce load)
-    const pollListingsDuringScraping = async () => {
-      try {
-        // Add timestamp and random number for aggressive cache busting
-        const cacheBuster = `t=${Date.now()}&r=${Math.random()}`
-        const response = await fetch(`/api/zillow-frbo-listings?${cacheBuster}`, {
-          cache: 'no-store',
-          headers: {
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          }
-        })
-        if (response.ok) {
-          const result = await response.json()
-          const newCount = result.listings?.length || 0
-          
-          // Only update if count increased (new listings added)
-          if (newCount > lastListingCount) {
-            console.log(`[Zillow FRBO] Real-time update: ${newCount} listings (was ${lastListingCount})`)
-            setData(result)
-            lastListingCount = newCount
-            setNotification({ message: `🔄 ${newCount} listings found so far...`, type: 'info' })
-            setTimeout(() => setNotification(null), 3000)
-          }
-        }
-      } catch (err) {
-        // Silently fail - don't spam errors during polling
-      }
-    }
-
-    // Start status polling immediately, then every 3 seconds
-    pollScraperStatus()
-    statusIntervalId = setInterval(pollScraperStatus, 3000)
+    const supabase = createClient()
     
-    // Start listings polling every 5 seconds during scraping (real-time updates)
-    listingsIntervalId = setInterval(pollListingsDuringScraping, 5000)
+    // Subscribe to real-time changes in zillow_frbo_listings table
+    const channel = supabase
+      .channel('zillow_frbo_listings_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'zillow_frbo_listings'
+        },
+        (payload) => {
+          console.log('[Zillow FRBO] Webhook: Database change detected:', payload.eventType)
+          // When data changes in Supabase, automatically refresh listings
+          setTimeout(() => {
+            fetchListings(true)
+            setNotification({ message: '🔄 Listings updated from Supabase via webhook!', type: 'info' })
+            setTimeout(() => setNotification(null), 3000)
+          }, 500)
+        }
+      )
+      .subscribe()
 
-    // Cleanup on unmount or when scraper stops
-    return () => {
-      if (statusIntervalId) {
-        clearInterval(statusIntervalId)
+    // Also check scraper status periodically (but less frequently - only when running)
+    let statusCheckInterval: NodeJS.Timeout | null = null
+    if (isScraperRunning) {
+      const checkScraperStatus = async () => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+          if (res.ok) {
+            const statusData = await res.json()
+            const zillowFrboStatus = statusData.zillow_frbo
+            const isRunning = zillowFrboStatus?.status === 'running'
+            
+            if (!isRunning && isScraperRunning) {
+              setIsScraperRunning(false)
+              setNotification({ message: '✅ Scraper completed! Listings updated via webhook.', type: 'success' })
+              setTimeout(() => setNotification(null), 5000)
+            }
+          }
+        } catch (err) {
+          console.error('[Zillow FRBO] Error checking scraper status:', err)
+        }
       }
-      if (listingsIntervalId) {
-        clearInterval(listingsIntervalId)
+      
+      // Check status every 5 seconds (less frequent than before)
+      statusCheckInterval = setInterval(checkScraperStatus, 5000)
+    }
+
+    // Cleanup
+    return () => {
+      supabase.removeChannel(channel)
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval)
       }
     }
-  }, [isScraperRunning, data?.listings?.length]) // Include data length to track changes
+  }, [isScraperRunning])
 
   const handleLogout = async () => {
     try {

@@ -86,64 +86,63 @@ function HotpadsPageContent() {
     }
   }
 
-  // Poll scraper status and auto-refresh listings when scraper completes
+  // Webhook: Use Supabase real-time subscriptions instead of polling
   useEffect(() => {
-    if (!isScraperRunning) return
+    const supabase = createClient()
+    
+    // Subscribe to real-time changes in hotpads_listings table
+    const channel = supabase
+      .channel('hotpads_listings_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'hotpads_listings'
+        },
+        (payload) => {
+          console.log('[Hotpads] Webhook: Database change detected:', payload.eventType)
+          // When data changes in Supabase, automatically refresh listings
+          setTimeout(() => {
+            fetchListings(true)
+            setNotification({ message: '🔄 Listings updated from Supabase via webhook!', type: 'info' })
+            setTimeout(() => setNotification(null), 3000)
+          }, 500)
+        }
+      )
+      .subscribe()
 
-    let intervalId: NodeJS.Timeout | null = null
-
-    const pollScraperStatus = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
-        if (res.ok) {
-          const statusData = await res.json()
-          const hotpadsStatus = statusData.hotpads
-          const isRunning = hotpadsStatus?.status === 'running'
-
-          if (!isRunning && isScraperRunning) {
-            // Scraper just finished
-            setIsScraperRunning(false)
+    // Also check scraper status periodically (but less frequently - only when running)
+    let statusCheckInterval: NodeJS.Timeout | null = null
+    if (isScraperRunning) {
+      const checkScraperStatus = async () => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+          if (res.ok) {
+            const statusData = await res.json()
+            const hotpadsStatus = statusData.hotpads
+            const isRunning = hotpadsStatus?.status === 'running'
             
-            // Wait a moment for Supabase to sync, then refresh listings
-            setNotification({ message: '✅ Scraper completed! Refreshing listings...', type: 'success' })
-            
-            // Refresh listings after a short delay to ensure Supabase has updated data
-            setTimeout(() => {
-              fetchListings()
-              setNotification({ message: '✅ Listings updated from Supabase!', type: 'success' })
+            if (!isRunning && isScraperRunning) {
+              setIsScraperRunning(false)
+              setNotification({ message: '✅ Scraper completed! Listings updated via webhook.', type: 'success' })
               setTimeout(() => setNotification(null), 5000)
-            }, 2000) // 2 second delay for Supabase sync
-            
-            // Clear polling
-            if (intervalId) {
-              clearInterval(intervalId)
-              intervalId = null
-            }
-          } else if (isRunning) {
-            // Still running, continue polling
-            if (!intervalId) {
-              intervalId = setInterval(pollScraperStatus, 3000) // Poll every 3 seconds
             }
           }
-        }
-      } catch (err) {
-        console.error('Error polling scraper status:', err)
-        // On error, stop polling but don't clear the running state immediately
-        if (intervalId) {
-          clearInterval(intervalId)
-          intervalId = null
+        } catch (err) {
+          console.error('[Hotpads] Error checking scraper status:', err)
         }
       }
+      
+      // Check status every 5 seconds (less frequent than before)
+      statusCheckInterval = setInterval(checkScraperStatus, 5000)
     }
 
-    // Start polling immediately, then every 3 seconds
-    pollScraperStatus()
-    intervalId = setInterval(pollScraperStatus, 3000)
-
-    // Cleanup on unmount or when scraper stops
+    // Cleanup
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId)
+      supabase.removeChannel(channel)
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval)
       }
     }
   }, [isScraperRunning])
@@ -272,10 +271,10 @@ function HotpadsPageContent() {
     }
   }, [data])
 
-  const fetchListings = async () => {
+  const fetchListings = async (forceRefresh = false) => {
     try {
       const hasExistingData = data && data.listings && data.listings.length > 0
-      if (!hasExistingData) {
+      if (!hasExistingData || forceRefresh) {
         setLoading(true)
       }
       setError(null)

@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useMemo, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import UrlScraperInput from '@/app/components/UrlScraperInput'
 import { getDefaultUrlForPlatform } from '@/lib/url-validation'
+import { createClient } from '@/lib/supabase-client'
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:8080'
 
@@ -246,92 +247,66 @@ function DashboardContent() {
     }
   }, [data]) // Run when data changes
 
-  // Poll scraper status and auto-refresh listings when scraper completes
+  // Webhook: Use Supabase real-time subscriptions instead of polling
   useEffect(() => {
-    if (!isScraperRunning) return
+    const supabase = createClient()
+    
+    // Subscribe to real-time changes in listings table
+    const channel = supabase
+      .channel('listings_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to INSERT, UPDATE, DELETE
+          schema: 'public',
+          table: 'listings'
+        },
+        (payload) => {
+          console.log('[FSBO] Webhook: Database change detected:', payload.eventType)
+          // When data changes in Supabase, automatically refresh listings
+          setTimeout(() => {
+            fetchListings(true)
+            setNotification({ message: '🔄 Listings updated from Supabase via webhook!', type: 'info' })
+            setTimeout(() => setNotification(null), 3000)
+          }, 500)
+        }
+      )
+      .subscribe()
 
-    let intervalId: NodeJS.Timeout | null = null
-    let hasCompleted = false // Prevent multiple completion triggers
-
-    const pollScraperStatus = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
-        if (res.ok) {
-          const statusData = await res.json()
-          const fsboStatus = statusData.fsbo
-          const isRunning = fsboStatus?.status === 'running'
-
-          if (!isRunning && isScraperRunning && !hasCompleted) {
-            // Scraper just finished - only trigger once
-            hasCompleted = true
-            setIsScraperRunning(false)
+    // Also check scraper status periodically (but less frequently - only when running)
+    let statusCheckInterval: NodeJS.Timeout | null = null
+    if (isScraperRunning) {
+      const checkScraperStatus = async () => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+          if (res.ok) {
+            const statusData = await res.json()
+            const fsboStatus = statusData.fsbo
+            const isRunning = fsboStatus?.status === 'running'
             
-            // Clear polling immediately
-            if (intervalId) {
-              clearInterval(intervalId)
-              intervalId = null
-            }
-            
-            // Immediately refresh listings (no delay - data should already be in Supabase)
-            setNotification({ message: '✅ Scraper stopped! Refreshing listings...', type: 'success' })
-            
-            // Force refresh listings immediately with retry
-            let retryCount = 0
-            const maxRetries = 3
-            
-            const refreshListings = async () => {
-              try {
-                console.log(`[FSBO] Auto-refreshing listings from Supabase (attempt ${retryCount + 1}/${maxRetries})...`)
-                // Fetch fresh listings from Supabase with force refresh and cache busting
-                await fetchListings(true)
-                const newCount = data?.listings?.length || 0
-                console.log(`[FSBO] Successfully fetched ${newCount} listings from Supabase`)
-                setNotification({ message: `✅ Listings updated! Showing ${newCount} listings from Supabase.`, type: 'success' })
-                setTimeout(() => setNotification(null), 5000)
-              } catch (err) {
-                console.error(`[FSBO] Error refreshing listings (attempt ${retryCount + 1}):`, err)
-                retryCount++
-                if (retryCount < maxRetries) {
-                  // Retry after 1 second (faster retry)
-                  setTimeout(refreshListings, 1000)
-                } else {
-                  setNotification({ message: '⚠️ Failed to refresh listings. Please refresh manually.', type: 'info' })
-                  setTimeout(() => setNotification(null), 5000)
-                  setLoading(false)
-                }
-              }
-            }
-            
-            // Start refresh immediately (no delay)
-            refreshListings()
-          } else if (isRunning && !hasCompleted) {
-            // Still running, continue polling
-            if (!intervalId) {
-              intervalId = setInterval(pollScraperStatus, 3000) // Poll every 3 seconds
+            if (!isRunning && isScraperRunning) {
+              setIsScraperRunning(false)
+              setNotification({ message: '✅ Scraper completed! Listings updated via webhook.', type: 'success' })
+              setTimeout(() => setNotification(null), 5000)
             }
           }
-        }
-      } catch (err) {
-        console.error('[FSBO] Error polling scraper status:', err)
-        // On error, stop polling but don't clear the running state immediately
-        if (intervalId) {
-          clearInterval(intervalId)
-          intervalId = null
+        } catch (err) {
+          console.error('[FSBO] Error checking scraper status:', err)
         }
       }
+      
+      // Check status every 5 seconds (less frequent than before)
+      statusCheckInterval = setInterval(checkScraperStatus, 5000)
     }
 
-    // Start polling immediately, then every 3 seconds
-    pollScraperStatus()
-    intervalId = setInterval(pollScraperStatus, 3000)
-
-    // Cleanup on unmount or when scraper stops
+    // Cleanup
     return () => {
-      if (intervalId) {
-        clearInterval(intervalId)
+      supabase.removeChannel(channel)
+      if (statusCheckInterval) {
+        clearInterval(statusCheckInterval)
       }
     }
-  }, [isScraperRunning, data?.listings?.length]) // Include data length to track changes
+  }, [isScraperRunning])
 
   // Function to check if property is sold (Relaxed)
   const isPropertySold = (listing: Listing): boolean => {
