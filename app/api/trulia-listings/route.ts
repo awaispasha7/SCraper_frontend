@@ -190,12 +190,22 @@ export async function GET() {
           }
 
           // Get the latest scrape date from the listings
-          const latestScrapeDate = transformedListings.length > 0
-            ? transformedListings.reduce((latest: string, current: any) => {
+          // Use the most recent scrape_date from the listings, or today's date as fallback
+          let latestScrapeDate = ''
+          if (transformedListings.length > 0) {
+            latestScrapeDate = transformedListings.reduce((latest: string, current: any) => {
               const currentDate = current.scrape_date || '';
-              return currentDate > latest ? currentDate : latest
-            }, transformedListings[0].scrape_date || '')
-            : new Date().toISOString().split('T')[0]
+              // Compare dates as strings (YYYY-MM-DD format)
+              if (currentDate && currentDate > latest) {
+                return currentDate
+              }
+              return latest
+            }, transformedListings[0]?.scrape_date || '')
+          }
+          
+          // If no valid scrape_date found, use today's date
+          const finalScrapeDate = latestScrapeDate || new Date().toISOString().split('T')[0]
+          console.log(`📅 Using scrape_date: ${finalScrapeDate} (from ${transformedListings.length} listings)`)
 
           // Final count check
           console.log(`📊 Final API response: ${transformedListings.length} listings (from ${listings.length} raw records)`)
@@ -203,7 +213,7 @@ export async function GET() {
           return NextResponse.json(
             {
               total_listings: transformedListings.length,
-              scrape_date: latestScrapeDate,
+              scrape_date: finalScrapeDate,
               listings: transformedListings
             },
             {
