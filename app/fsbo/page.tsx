@@ -824,15 +824,25 @@ function DashboardContent() {
   }
 
   const formatDate = (timestamp: string) => {
-    if (!timestamp) return 'N/A'
-    const date = new Date(timestamp)
-    return date.toLocaleString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })
+    if (!timestamp || !timestamp.trim()) return 'N/A'
+    try {
+      const date = new Date(timestamp.trim())
+      // Check if date is valid
+      if (isNaN(date.getTime())) {
+        return 'N/A'
+      }
+      return date.toLocaleString('en-US', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: true
+      })
+    } catch (err) {
+      return 'N/A'
+    }
   }
 
   const handleDownload = (listing: Listing) => {

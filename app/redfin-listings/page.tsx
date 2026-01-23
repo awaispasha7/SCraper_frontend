@@ -787,18 +787,56 @@ function RedfinListingsPageContent() {
                 minute: '2-digit',
                 second: '2-digit',
                 hour12: true
-              }) : (data?.scrape_date ? (() => {
+              }) : (data?.scrape_date && data.scrape_date.trim() ? (() => {
                 // Fallback to scrape_date if lastFetchTime not set yet
-                const date = new Date(data.scrape_date + 'T00:00:00') // Add time to avoid timezone issues
-                return date.toLocaleString('en-US', {
+                try {
+                  const dateStr = data.scrape_date.trim()
+                  const date = new Date(dateStr.includes('T') ? dateStr : dateStr + 'T00:00:00')
+                  // Check if date is valid
+                  if (isNaN(date.getTime())) {
+                    // If date is invalid but we have data, show current time
+                    return new Date().toLocaleString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      hour12: true
+                    })
+                  }
+                  return date.toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  })
+                } catch (err) {
+                  // If error but we have data, show current time
+                  return new Date().toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true
+                  })
+                }
+              })() : (data?.listings && data.listings.length > 0 ? (() => {
+                // If we have listings but no date, show current time
+                return new Date().toLocaleString('en-US', {
                   year: 'numeric',
                   month: 'short',
                   day: 'numeric',
                   hour: '2-digit',
                   minute: '2-digit',
+                  second: '2-digit',
                   hour12: true
                 })
-              })() : 'N/A')}
+              })() : 'N/A'))}
             </div>
             <div className="text-gray-500 text-xs mt-1 font-medium">
               {lastFetchTime ? 'Last refreshed' : 'Last scraped date'}
