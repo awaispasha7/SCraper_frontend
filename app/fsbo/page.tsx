@@ -251,6 +251,7 @@ function DashboardContent() {
     if (!isScraperRunning) return
 
     let intervalId: NodeJS.Timeout | null = null
+    let hasCompleted = false // Prevent multiple completion triggers
 
     const pollScraperStatus = async () => {
       try {
@@ -260,26 +261,50 @@ function DashboardContent() {
           const fsboStatus = statusData.fsbo
           const isRunning = fsboStatus?.status === 'running'
 
-          if (!isRunning && isScraperRunning) {
-            // Scraper just finished
+          if (!isRunning && isScraperRunning && !hasCompleted) {
+            // Scraper just finished - only trigger once
+            hasCompleted = true
             setIsScraperRunning(false)
             
-            // Wait a moment for Supabase to sync, then refresh listings
-            setNotification({ message: '✅ Scraper completed! Refreshing listings...', type: 'success' })
-            
-            // Refresh listings after a short delay to ensure Supabase has updated data
-            setTimeout(() => {
-              fetchListings()
-              setNotification({ message: '✅ Listings updated from Supabase!', type: 'success' })
-              setTimeout(() => setNotification(null), 5000)
-            }, 2000) // 2 second delay for Supabase sync
-            
-            // Clear polling
+            // Clear polling immediately
             if (intervalId) {
               clearInterval(intervalId)
               intervalId = null
             }
-          } else if (isRunning) {
+            
+            // Immediately refresh listings (no delay - data should already be in Supabase)
+            setNotification({ message: '✅ Scraper stopped! Refreshing listings...', type: 'success' })
+            
+            // Force refresh listings immediately with retry
+            let retryCount = 0
+            const maxRetries = 3
+            
+            const refreshListings = async () => {
+              try {
+                console.log(`[FSBO] Auto-refreshing listings from Supabase (attempt ${retryCount + 1}/${maxRetries})...`)
+                // Fetch fresh listings from Supabase with force refresh and cache busting
+                await fetchListings(true)
+                const newCount = data?.listings?.length || 0
+                console.log(`[FSBO] Successfully fetched ${newCount} listings from Supabase`)
+                setNotification({ message: `✅ Listings updated! Showing ${newCount} listings from Supabase.`, type: 'success' })
+                setTimeout(() => setNotification(null), 5000)
+              } catch (err) {
+                console.error(`[FSBO] Error refreshing listings (attempt ${retryCount + 1}):`, err)
+                retryCount++
+                if (retryCount < maxRetries) {
+                  // Retry after 1 second (faster retry)
+                  setTimeout(refreshListings, 1000)
+                } else {
+                  setNotification({ message: '⚠️ Failed to refresh listings. Please refresh manually.', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
+                  setLoading(false)
+                }
+              }
+            }
+            
+            // Start refresh immediately (no delay)
+            refreshListings()
+          } else if (isRunning && !hasCompleted) {
             // Still running, continue polling
             if (!intervalId) {
               intervalId = setInterval(pollScraperStatus, 3000) // Poll every 3 seconds
@@ -287,7 +312,7 @@ function DashboardContent() {
           }
         }
       } catch (err) {
-        console.error('Error polling scraper status:', err)
+        console.error('[FSBO] Error polling scraper status:', err)
         // On error, stop polling but don't clear the running state immediately
         if (intervalId) {
           clearInterval(intervalId)
@@ -306,7 +331,7 @@ function DashboardContent() {
         clearInterval(intervalId)
       }
     }
-  }, [isScraperRunning])
+  }, [isScraperRunning, data?.listings?.length]) // Include data length to track changes
 
   // Function to check if property is sold (Relaxed)
   const isPropertySold = (listing: Listing): boolean => {
@@ -326,11 +351,12 @@ function DashboardContent() {
     return soldIndicators.some(indicator => price.includes(indicator))
   }
 
-  const fetchListings = async () => {
+  const fetchListings = async (forceRefresh = false) => {
     try {
       // Don't set loading to true if we already have data (prevents clearing during navigation)
+      // UNLESS forceRefresh is true (for auto-refresh after scraper completes)
       const hasExistingData = data && data.listings && data.listings.length > 0
-      if (!hasExistingData) {
+      if (!hasExistingData || forceRefresh) {
         setLoading(true)
       }
 
@@ -338,11 +364,15 @@ function DashboardContent() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-      const response = await fetch('/api/listings?' + new Date().getTime(), {
+      // Add timestamp and random number for aggressive cache busting
+      const cacheBuster = `t=${Date.now()}&r=${Math.random()}`
+      const response = await fetch(`/api/listings?${cacheBuster}`, {
         cache: 'no-store',
         signal: controller.signal,
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
         // Add priority hint for faster loading
         priority: 'high'
@@ -569,9 +599,11 @@ function DashboardContent() {
       if (data && result.listings.length !== data.listings.length) {
         setCurrentPage(1) // Reset to first page
       }
+      
+      console.log(`[FSBO] Fetched ${result.listings?.length || 0} listings from Supabase (API total_listings: ${result.total_listings || 0})`)
     } catch (err: any) {
       setError(err.message)
-      console.error('Error fetching listings:', err)
+      console.error('[FSBO] Error fetching listings:', err)
     } finally {
       setLoading(false)
     }
@@ -661,10 +693,14 @@ function DashboardContent() {
       }
       
       try {
-        const response = await fetch('/api/listings?' + new Date().getTime(), {
+        // Add timestamp and random number for aggressive cache busting
+        const cacheBuster = `t=${Date.now()}&r=${Math.random()}`
+        const response = await fetch(`/api/listings?${cacheBuster}`, {
           cache: 'no-store',
           headers: {
-            'Cache-Control': 'no-cache',
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           }
         })
         if (response.ok) {
@@ -1220,6 +1256,25 @@ function DashboardContent() {
                   setIsSyncing(true)
                   pollForListings(3000, 120)
                   // Note: pollForListings now checks backend status and stops automatically when scraper finishes
+                }}
+                onStop={() => {
+                  // Immediately refresh listings when scraper is stopped
+                  console.log('[FSBO] Scraper stopped - refreshing listings immediately...')
+                  setIsScraperRunning(false)
+                  setIsSyncing(false)
+                  setNotification({ message: '🛑 Scraper stopped! Refreshing listings...', type: 'info' })
+                  // Wait 1 second for Supabase to sync, then refresh
+                  setTimeout(async () => {
+                    try {
+                      await fetchListings(true)
+                      setNotification({ message: '✅ Listings refreshed from Supabase!', type: 'success' })
+                      setTimeout(() => setNotification(null), 5000)
+                    } catch (err) {
+                      console.error('[FSBO] Error refreshing after stop:', err)
+                      setNotification({ message: '⚠️ Failed to refresh. Please refresh manually.', type: 'info' })
+                      setTimeout(() => setNotification(null), 5000)
+                    }
+                  }, 1000)
                 }}
                 onError={(error) => {
                   setSyncProgress(`❌ ${error}`)
