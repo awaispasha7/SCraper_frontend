@@ -16,6 +16,17 @@ export async function GET() {
         // Fetch Trulia listings from Supabase with pagination to get ALL listings
         console.log('📥 Fetching Trulia listings from Supabase...')
         
+        // First, get the total count to verify
+        const { count: totalCount, error: countError } = await dbClient
+          .from('trulia_listings')
+          .select('*', { count: 'exact', head: true })
+        
+        if (countError) {
+          console.warn('⚠️ Could not get total count:', countError)
+        } else {
+          console.log(`📊 Total records in Supabase trulia_listings table: ${totalCount}`)
+        }
+        
         // Fetch all listings using pagination (Supabase default limit is 1000, so we need to paginate)
         let allListings: any[] = []
         let page = 0
@@ -63,7 +74,16 @@ export async function GET() {
         const error = queryError
 
         if (listings && listings.length > 0) {
-          console.log(`✅ Found ${listings.length} total Trulia listings in Supabase`)
+          console.log(`✅ Fetched ${listings.length} total Trulia listings from Supabase`)
+          if (totalCount !== null && listings.length !== totalCount) {
+            console.error(`❌ COUNT MISMATCH: Fetched ${listings.length} but Supabase has ${totalCount} records! Missing ${totalCount - listings.length} records.`)
+          }
+          
+          // Log any potential issues with records
+          const recordsWithIssues = listings.filter((l: any) => !l.id || !l.address)
+          if (recordsWithIssues.length > 0) {
+            console.warn(`⚠️ Found ${recordsWithIssues.length} records with missing id or address:`, recordsWithIssues.map((l: any) => ({ id: l.id, address: l.address })))
+          }
 
           // Get unique address_hashes for batch lookup (de-duplicated to reduce parameters)
           const uniqueHashes = Array.from(new Set(listings.map((l: any) => l.address_hash).filter(Boolean))) as string[]
@@ -111,46 +131,63 @@ export async function GET() {
           }
 
           // Transform Supabase data to match frontend format - optimized
-          const transformedListings = listings.map((listing: any) => {
-            // Optimize string conversion - only convert if needed
-            const convertToString = (val: any): string => {
-              return val !== null && val !== undefined ? String(val) : ''
-            }
+          // IMPORTANT: Use filter + map to ensure we only include valid records
+          const transformedListings = listings
+            .filter((listing: any) => {
+              // Only include records with valid id (required)
+              if (!listing.id) {
+                console.warn(`⚠️ Skipping listing without id:`, listing)
+                return false
+              }
+              return true
+            })
+            .map((listing: any) => {
+              // Optimize string conversion - only convert if needed
+              const convertToString = (val: any): string => {
+                return val !== null && val !== undefined ? String(val) : ''
+              }
 
-            // Get enrichment state and owner data using address_hash
-            const state = listing.address_hash ? enrichmentStates[listing.address_hash] : null
-            const owner = listing.address_hash ? ownerDetails[listing.address_hash] : null
+              // Get enrichment state and owner data using address_hash
+              const state = listing.address_hash ? enrichmentStates[listing.address_hash] : null
+              const owner = listing.address_hash ? ownerDetails[listing.address_hash] : null
 
-            // Smart status determination: if owner data exists, status is "enriched"
-            const hasOwnerData = owner?.owner_name || owner?.owner_email || owner?.owner_phone
-            const enrichmentStatus = hasOwnerData ? 'enriched' : (state?.status || 'never_checked')
+              // Smart status determination: if owner data exists, status is "enriched"
+              const hasOwnerData = owner?.owner_name || owner?.owner_email || owner?.owner_phone
+              const enrichmentStatus = hasOwnerData ? 'enriched' : (state?.status || 'never_checked')
 
-            return {
-              id: listing.id,
-              address: listing.address || 'Address Not Available',
-              price: convertToString(listing.price),
-              beds: convertToString(listing.beds),
-              baths: convertToString(listing.baths),
-              square_feet: convertToString(listing.square_feet),
-              listing_link: listing.listing_link || '',
-              property_type: listing.property_type || '',
-              lot_size: convertToString(listing.lot_size),
-              description: listing.description || '',
-              owner_name: owner?.owner_name || listing.owner_name || null,
-              mailing_address: owner?.mailing_address || listing.mailing_address || null,
-              emails: owner?.owner_email || listing.emails || null,
-              phones: owner?.owner_phone || listing.phones || null,
-              enrichment_status: enrichmentStatus,
-              enrichment_locked: state?.locked || false,
-              enrichment_source: owner?.source || null,
-              address_hash: listing.address_hash || null,
-              is_active_for_sale: true,
-              is_off_market: false,
-              is_recently_sold: false,
-              is_foreclosure: false,
-              scrape_date: listing.scrape_date || '2025-11-20'
-            }
-          })
+              return {
+                id: listing.id,
+                address: listing.address || 'Address Not Available',
+                price: convertToString(listing.price),
+                beds: convertToString(listing.beds),
+                baths: convertToString(listing.baths),
+                square_feet: convertToString(listing.square_feet),
+                listing_link: listing.listing_link || '',
+                property_type: listing.property_type || '',
+                lot_size: convertToString(listing.lot_size),
+                description: listing.description || '',
+                owner_name: owner?.owner_name || listing.owner_name || null,
+                mailing_address: owner?.mailing_address || listing.mailing_address || null,
+                emails: owner?.owner_email || listing.emails || null,
+                phones: owner?.owner_phone || listing.phones || null,
+                enrichment_status: enrichmentStatus,
+                enrichment_locked: state?.locked || false,
+                enrichment_source: owner?.source || null,
+                address_hash: listing.address_hash || null,
+                is_active_for_sale: true,
+                is_off_market: false,
+                is_recently_sold: false,
+                is_foreclosure: false,
+                scrape_date: listing.scrape_date || '2025-11-20'
+              }
+            })
+          
+          // Log transformation results
+          if (transformedListings.length !== listings.length) {
+            console.warn(`⚠️ Transformation filtered out ${listings.length - transformedListings.length} records (${listings.length} → ${transformedListings.length})`)
+          } else {
+            console.log(`✅ All ${listings.length} records transformed successfully`)
+          }
 
           // Get the latest scrape date from the listings
           const latestScrapeDate = transformedListings.length > 0
@@ -160,6 +197,9 @@ export async function GET() {
             }, transformedListings[0].scrape_date || '')
             : new Date().toISOString().split('T')[0]
 
+          // Final count check
+          console.log(`📊 Final API response: ${transformedListings.length} listings (from ${listings.length} raw records)`)
+          
           return NextResponse.json(
             {
               total_listings: transformedListings.length,
