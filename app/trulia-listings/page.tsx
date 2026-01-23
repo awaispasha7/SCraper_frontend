@@ -349,13 +349,9 @@ function TruliaListingsPageContent() {
       return
     }
 
-    // Only fetch if we don't have data OR if we're not returning from owner-info
-    if (!data || !data.listings || data.listings.length === 0) {
-      fetchListings()
-    } else if (!returningFromOwnerInfo) {
-      // Have data but not returning from owner-info, fetch fresh data in background
-      fetchListings()
-    }
+    // Always force refresh on mount to get latest data from Supabase
+    // This ensures we get all 152 listings, not cached 17 listings
+    fetchListings(true) // Force refresh to bypass cache
   }, [])
 
   // Restore scroll position after data loads
@@ -409,11 +405,15 @@ function TruliaListingsPageContent() {
       const controller = new AbortController()
       const timeoutId = setTimeout(() => controller.abort(), 10000) // 10 second timeout
 
-      const response = await fetch('/api/trulia-listings?' + new Date().getTime(), {
+      // Aggressive cache busting to ensure fresh data from Supabase
+      const cacheBuster = `t=${Date.now()}&r=${Math.random()}`
+      const response = await fetch(`/api/trulia-listings?${cacheBuster}`, {
         cache: 'no-store',
         signal: controller.signal,
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
         },
         // Add priority hint for faster loading
         priority: 'high'
@@ -432,6 +432,9 @@ function TruliaListingsPageContent() {
 
       const result = await response.json()
 
+      // Log the fetched count for debugging
+      console.log(`[Trulia] Fetched ${result.listings?.length || 0} listings from API (total_listings: ${result.total_listings || 0})`)
+
       // Ensure all numeric fields are strings for consistent display
       const normalizedResult = {
         ...result,
@@ -443,6 +446,9 @@ function TruliaListingsPageContent() {
           square_feet: listing.square_feet !== null && listing.square_feet !== undefined ? String(listing.square_feet) : listing.square_feet,
         }))
       }
+      
+      // Log final count after normalization
+      console.log(`[Trulia] Normalized result: ${normalizedResult.listings.length} listings`)
 
       setData(normalizedResult)
     } catch (err: any) {
@@ -710,41 +716,55 @@ function TruliaListingsPageContent() {
 
       {/* Stats Cards */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5">
-          {/* Available Listings Card */}
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
-            <div className="mb-2">
-              <div className="text-3xl sm:text-4xl font-bold text-gray-900">
-                {searchQuery ? filteredListings.length : (data?.total_listings || 0)}
+        <div className="flex flex-col md:flex-row gap-4 sm:gap-5 items-start md:items-center justify-between mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-5 flex-1">
+            {/* Available Listings Card */}
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
+              <div className="mb-2">
+                <div className="text-3xl sm:text-4xl font-bold text-gray-900">
+                  {searchQuery ? filteredListings.length : (data?.listings?.length || data?.total_listings || 0)}
+                </div>
+              </div>
+              <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide">
+                {searchQuery ? 'Filtered Listings' : 'Available Listings'}
+              </div>
+              <div className="text-gray-500 text-xs mt-1 font-medium">
+                {searchQuery ? 'Matching search criteria' : 'Active properties'}
               </div>
             </div>
-            <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide">
-              {searchQuery ? 'Filtered Listings' : 'Available Listings'}
-            </div>
-            <div className="text-gray-500 text-xs mt-1 font-medium">
-              {searchQuery ? 'Matching search criteria' : 'Active properties'}
-            </div>
-          </div>
 
-          {/* Last Updated Card */}
-          <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
-            <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
-            <div className="text-lg sm:text-xl font-bold">
-              {data?.scrape_date ? (() => {
-                const date = new Date(data.scrape_date)
-                return date.toLocaleString('en-US', {
-                  year: 'numeric',
-                  month: 'short',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })
-              })() : 'N/A'}
-            </div>
-            <div className="text-gray-500 text-xs mt-1 font-medium">
-              Last scraped date
+            {/* Last Updated Card */}
+            <div className="bg-white rounded-lg shadow-sm p-4 sm:p-5 border border-gray-200 hover:shadow-md transition-all duration-200">
+              <div className="text-gray-600 text-xs sm:text-sm font-semibold uppercase tracking-wide mb-2">Last Updated</div>
+              <div className="text-lg sm:text-xl font-bold">
+                {data?.scrape_date ? (() => {
+                  const date = new Date(data.scrape_date)
+                  return date.toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })
+                })() : 'N/A'}
+              </div>
+              <div className="text-gray-500 text-xs mt-1 font-medium">
+                Last scraped date
+              </div>
             </div>
           </div>
+          
+          {/* Refresh Button */}
+          <button
+            onClick={() => fetchListings(true)}
+            disabled={loading}
+            className="px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white rounded-lg font-medium transition-all duration-200 shadow-sm hover:shadow-md flex items-center gap-2 whitespace-nowrap"
+          >
+            <svg className={`w-5 h-5 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {loading ? 'Refreshing...' : 'Refresh Listings'}
+          </button>
         </div>
       </div>
 
