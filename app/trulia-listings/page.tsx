@@ -52,6 +52,8 @@ function TruliaListingsPageContent() {
   const [isScraperRunning, setIsScraperRunning] = useState(false) // Track scraper status
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null) // Notification state
   const [lastFetchTime, setLastFetchTime] = useState<Date | null>(null) // Track when data was last fetched
+  const wasRunningRef = useRef(false) // Track previous running state to detect changes
+  const fetchListingsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | null>(null) // Ref to fetchListings to avoid stale closures
 
   // Handle starting scraper with default URL
   const handleStartScrapingWithDefault = async () => {
