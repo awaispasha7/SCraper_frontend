@@ -463,7 +463,7 @@ function HotpadsPageContent() {
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Error Loading Data</h2>
           <p className="text-gray-600 mb-6">{error}</p>
           <button
-            onClick={fetchListings}
+            onClick={() => fetchListings()}
             className="bg-blue-50 text-blue-700 border border-blue-300 px-8 py-3 rounded-lg hover:bg-blue-100 transition-all duration-200 shadow-sm hover:shadow-md font-medium"
           >
             Retry
@@ -483,7 +483,7 @@ function HotpadsPageContent() {
             No Hotpads listings were found.
           </p>
           <button
-            onClick={fetchListings}
+            onClick={() => fetchListings()}
             className="bg-blue-50 text-blue-700 border border-blue-300 px-8 py-4 rounded-lg hover:bg-blue-100 transition-all duration-200 font-medium shadow-sm hover:shadow-md"
           >
             Refresh
