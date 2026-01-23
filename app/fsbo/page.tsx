@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef, useMemo, Suspense } from 'react'
+import { useEffect, useState, useRef, useMemo, Suspense, useCallback } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import UrlScraperInput from '@/app/components/UrlScraperInput'
 import { getDefaultUrlForPlatform } from '@/lib/url-validation'
@@ -48,6 +48,8 @@ function DashboardContent() {
   const [isScraperRunning, setIsScraperRunning] = useState(false) // Track scraper status
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null) // Notification state
   const [showWelcomeMessage, setShowWelcomeMessage] = useState(false) // Show welcome message after login
+  const wasRunningRef = useRef(false) // Track previous running state to detect changes
+  const fetchListingsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | null>(null) // Ref to fetchListings to avoid stale closures
   const [previousUrls, setPreviousUrls] = useState<Set<string>>(() => {
     // Load previous URLs from localStorage if available
     if (typeof window !== 'undefined') {
@@ -263,74 +265,138 @@ function DashboardContent() {
         },
         (payload) => {
           console.log('[FSBO] Webhook: Database change detected:', payload.eventType)
-          // When data changes in Supabase, automatically refresh listings
-          setTimeout(() => {
-            fetchListings(true)
-            setNotification({ message: '🔄 Listings updated from Supabase via webhook!', type: 'info' })
-            setTimeout(() => setNotification(null), 3000)
-          }, 500)
-        }
-      )
-      .subscribe()
-
-    // Also check scraper status periodically (but less frequently - only when running)
-    let statusCheckInterval: NodeJS.Timeout | null = null
-    if (isScraperRunning) {
-      const checkScraperStatus = async () => {
-        try {
-          const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
-          if (res.ok) {
-            const statusData = await res.json()
-            const fsboStatus = statusData.fsbo
-            const isRunning = fsboStatus?.status === 'running'
-            
-            if (!isRunning && isScraperRunning) {
-              // Scraper just stopped - fetch latest data from Supabase immediately
-              console.log('[FSBO] Scraper stopped! Fetching latest listings from Supabase...')
-              setIsScraperRunning(false)
+          
+          // Use ref to avoid stale closure
+          const refreshWithRetry = async (retryCount = 0, maxRetries = 3) => {
+            try {
+              if (!fetchListingsRef.current) return
               
-              // Clear interval immediately to prevent multiple triggers
-              if (statusCheckInterval) {
-                clearInterval(statusCheckInterval)
-                statusCheckInterval = null
-              }
+              console.log(`[FSBO] Webhook: Refreshing listings (attempt ${retryCount + 1}/${maxRetries})...`)
+              await fetchListingsRef.current(true)
               
-              // Wait 2 seconds for Supabase to finish saving all data, then fetch
+              // Fetch fresh count from API (don't use stale data state)
               setTimeout(async () => {
                 try {
-                  console.log('[FSBO] Auto-refreshing listings after scraper stop...')
-                  await fetchListings(true) // Force refresh to get all latest listings from Supabase
-                  
-                  // Show success notification (count will be updated via setData in fetchListings)
-                  setNotification({ message: '✅ Scraper completed! Listings refreshed from Supabase.', type: 'success' })
+                  const res = await fetch('/api/listings?' + Date.now(), { cache: 'no-store' })
+                  const result = await res.json()
+                  const newCount = result.listings?.length || result.total_listings || 0
+                  console.log(`[FSBO] Webhook refresh complete: ${newCount} listings`)
+                  setNotification({ message: `🔄 Listings updated! Now showing ${newCount} listings.`, type: 'info' })
                   setTimeout(() => setNotification(null), 5000)
                 } catch (err) {
-                  console.error('[FSBO] Error refreshing after scraper stop:', err)
-                  setNotification({ message: '⚠️ Scraper stopped but failed to refresh. Click Refresh button.', type: 'info' })
+                  console.error('[FSBO] Error getting count after webhook:', err)
+                  setNotification({ message: '🔄 Listings updated from Supabase!', type: 'info' })
                   setTimeout(() => setNotification(null), 5000)
                 }
-              }, 2000) // 2 second delay to ensure Supabase has saved all data
+              }, 500)
+            } catch (err) {
+              console.error(`[FSBO] Webhook refresh failed (attempt ${retryCount + 1}):`, err)
+              if (retryCount < maxRetries - 1) {
+                setTimeout(() => refreshWithRetry(retryCount + 1, maxRetries), 2000)
+              } else {
+                setNotification({ message: '⚠️ Failed to refresh. Click Refresh button.', type: 'info' })
+                setTimeout(() => setNotification(null), 5000)
+              }
             }
           }
-        } catch (err) {
-          console.error('[FSBO] Error checking scraper status:', err)
+          
+          // Wait 2 seconds to ensure all changes are committed
+          setTimeout(() => refreshWithRetry(), 2000)
         }
+      )
+      .subscribe((status) => {
+        console.log('[FSBO] Webhook subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('[FSBO] ✅ Successfully subscribed to real-time updates')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[FSBO] ❌ Webhook subscription error')
+        }
+      })
+
+    // Check scraper status CONTINUOUSLY (not just when running)
+    let statusCheckInterval: NodeJS.Timeout | null = null
+    
+    const checkScraperStatus = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+        if (res.ok) {
+          const statusData = await res.json()
+          const scraperStatus = statusData.fsbo
+          const isRunning = scraperStatus?.status === 'running'
+          
+          // Update state if changed
+          setIsScraperRunning(prev => {
+            if (prev !== isRunning) {
+              return isRunning
+            }
+            return prev
+          })
+          
+          // If scraper just stopped (was running, now not running)
+          if (!isRunning && wasRunningRef.current) {
+            console.log('[FSBO] Scraper stopped! Fetching latest listings...')
+            wasRunningRef.current = false
+            
+            // Wait 5 seconds for Supabase to finish saving, then refresh with retry
+            const refreshAfterStop = async (currentRetry = 0, maxRetries = 5) => {
+              try {
+                if (!fetchListingsRef.current) return
+                
+                console.log(`[FSBO] Auto-refreshing after scraper stop (attempt ${currentRetry + 1}/${maxRetries})...`)
+                await fetchListingsRef.current(true)
+                
+                // Verify count by fetching fresh data
+                setTimeout(async () => {
+                  try {
+                    const res = await fetch('/api/listings?' + Date.now(), { cache: 'no-store' })
+                    const result = await res.json()
+                    const newCount = result.listings?.length || result.total_listings || 0
+                    console.log(`[FSBO] Successfully refreshed! Now showing ${newCount} listings`)
+                    setNotification({ message: `✅ Scraper completed! Showing ${newCount} listings.`, type: 'success' })
+                    setTimeout(() => setNotification(null), 5000)
+                  } catch (err) {
+                    console.error('[FSBO] Error verifying count:', err)
+                    setNotification({ message: '✅ Scraper completed! Listings refreshed.', type: 'success' })
+                    setTimeout(() => setNotification(null), 5000)
+                  }
+                }, 1000)
+              } catch (err) {
+                console.error(`[FSBO] Refresh failed (attempt ${currentRetry + 1}):`, err)
+                if (currentRetry < maxRetries - 1) {
+                  setTimeout(() => refreshAfterStop(currentRetry + 1, maxRetries), 2000 * (currentRetry + 1))
+                } else {
+                  setNotification({ message: '⚠️ Failed to refresh. Click Refresh button.', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
+                }
+              }
+            }
+            
+            setTimeout(() => refreshAfterStop(), 5000)
+          } else if (isRunning) {
+            wasRunningRef.current = true
+          }
+        }
+      } catch (err) {
+        console.error('[FSBO] Error checking scraper status:', err)
       }
-      
-      // Check status every 5 seconds (less frequent than before)
-      statusCheckInterval = setInterval(checkScraperStatus, 5000)
-      // Also check immediately
-      checkScraperStatus()
     }
+    
+    // Initialize ref from current state
+    wasRunningRef.current = isScraperRunning
+    
+    // Run status check continuously every 3 seconds
+    statusCheckInterval = setInterval(checkScraperStatus, 3000)
+    checkScraperStatus()
 
     // Cleanup
     return () => {
+      console.log('[FSBO] Cleaning up webhook subscription and status check')
       supabase.removeChannel(channel)
       if (statusCheckInterval) {
         clearInterval(statusCheckInterval)
       }
     }
-  }, [isScraperRunning])
+  }, []) // Empty dependencies - only run once on mount
 
   // Function to check if property is sold (Relaxed)
   const isPropertySold = (listing: Listing): boolean => {
@@ -350,7 +416,7 @@ function DashboardContent() {
     return soldIndicators.some(indicator => price.includes(indicator))
   }
 
-  const fetchListings = async (forceRefresh = false) => {
+  const fetchListings = useCallback(async (forceRefresh = false) => {
     try {
       // Don't set loading to true if we already have data (prevents clearing during navigation)
       // UNLESS forceRefresh is true (for auto-refresh after scraper completes)
@@ -606,7 +672,12 @@ function DashboardContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [data]) // Include data in dependencies since we check it
+
+  // Store ref to fetchListings
+  useEffect(() => {
+    fetchListingsRef.current = fetchListings
+  }, [fetchListings])
 
   // Handle starting scraper with default URL
   const handleStartScrapingWithDefault = async () => {

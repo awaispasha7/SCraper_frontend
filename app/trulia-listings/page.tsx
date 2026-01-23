@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
@@ -104,23 +104,34 @@ function TruliaListingsPageContent() {
         },
         (payload) => {
           console.log('[Trulia] Webhook: Database change detected:', payload.eventType, payload)
-          // When data changes in Supabase, automatically refresh listings
-          // Use longer delay to ensure all changes are committed, and add retry logic
-          let retryCount = 0
-          const maxRetries = 3
           
-          const refreshWithRetry = async () => {
+          // Use ref to avoid stale closure
+          const refreshWithRetry = async (retryCount = 0, maxRetries = 3) => {
             try {
-              await fetchListings(true)
-              const newCount = data?.listings?.length || 0
-              console.log(`[Trulia] Webhook refresh complete: ${newCount} listings`)
-              setNotification({ message: `🔄 Listings updated! Now showing ${newCount} listings.`, type: 'info' })
-              setTimeout(() => setNotification(null), 5000)
+              if (!fetchListingsRef.current) return
+              
+              console.log(`[Trulia] Webhook: Refreshing listings (attempt ${retryCount + 1}/${maxRetries})...`)
+              await fetchListingsRef.current(true)
+              
+              // Fetch fresh count from API (don't use stale data state)
+              setTimeout(async () => {
+                try {
+                  const res = await fetch('/api/trulia-listings?' + Date.now(), { cache: 'no-store' })
+                  const result = await res.json()
+                  const newCount = result.listings?.length || result.total_listings || 0
+                  console.log(`[Trulia] Webhook refresh complete: ${newCount} listings`)
+                  setNotification({ message: `🔄 Listings updated! Now showing ${newCount} listings.`, type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
+                } catch (err) {
+                  console.error('[Trulia] Error getting count after webhook:', err)
+                  setNotification({ message: '🔄 Listings updated from Supabase!', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
+                }
+              }, 500)
             } catch (err) {
               console.error(`[Trulia] Webhook refresh failed (attempt ${retryCount + 1}):`, err)
-              retryCount++
-              if (retryCount < maxRetries) {
-                setTimeout(refreshWithRetry, 2000) // Retry after 2 seconds
+              if (retryCount < maxRetries - 1) {
+                setTimeout(() => refreshWithRetry(retryCount + 1, maxRetries), 2000)
               } else {
                 setNotification({ message: '⚠️ Failed to refresh. Click Refresh button.', type: 'info' })
                 setTimeout(() => setNotification(null), 5000)
@@ -128,99 +139,103 @@ function TruliaListingsPageContent() {
             }
           }
           
-          // Wait longer (2 seconds) to ensure all changes are committed
-          setTimeout(refreshWithRetry, 2000)
+          // Wait 2 seconds to ensure all changes are committed
+          setTimeout(() => refreshWithRetry(), 2000)
         }
       )
-      .subscribe()
+      .subscribe((status) => {
+        console.log('[Trulia] Webhook subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('[Trulia] ✅ Successfully subscribed to real-time updates')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Trulia] ❌ Webhook subscription error')
+        }
+      })
 
-    // Check scraper status periodically - run continuously to catch stop events
+    // Check scraper status CONTINUOUSLY (not just when running)
     let statusCheckInterval: NodeJS.Timeout | null = null
-    let previousRunningState = isScraperRunning // Track previous state to detect changes
     
     const checkScraperStatus = async () => {
       try {
         const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
         if (res.ok) {
           const statusData = await res.json()
-          const truliaStatus = statusData.trulia
-          const isRunning = truliaStatus?.status === 'running'
+          const scraperStatus = statusData.trulia
+          const isRunning = scraperStatus?.status === 'running'
           
           // Update state if changed
-          if (isRunning !== isScraperRunning) {
-            setIsScraperRunning(isRunning)
-          }
+          setIsScraperRunning(prev => {
+            if (prev !== isRunning) {
+              return isRunning
+            }
+            return prev
+          })
           
           // If scraper just stopped (was running, now not running)
-          if (!isRunning && previousRunningState) {
-            // Scraper just stopped - fetch latest data from Supabase immediately
-            console.log('[Trulia] Scraper stopped! Fetching latest listings from Supabase...')
-            previousRunningState = false // Update tracking variable
+          if (!isRunning && wasRunningRef.current) {
+            console.log('[Trulia] Scraper stopped! Fetching latest listings...')
+            wasRunningRef.current = false
             
-            // Wait longer (5 seconds) for Supabase to finish saving all data, then fetch with retry
-            let retryCount = 0
-            const maxRetries = 5
-            
-            const refreshAfterStop = async (currentRetry = 0) => {
+            // Wait 5 seconds for Supabase to finish saving, then refresh with retry
+            const refreshAfterStop = async (currentRetry = 0, maxRetries = 5) => {
               try {
-                console.log(`[Trulia] Auto-refreshing listings after scraper stop (attempt ${currentRetry + 1}/${maxRetries})...`)
-                await fetchListings(true) // Force refresh to get all latest listings from Supabase
+                if (!fetchListingsRef.current) return
                 
-                // Wait a bit for state to update, then check count
-                setTimeout(() => {
-                  // Use a fresh fetch to get the actual count
-                  fetch('/api/trulia-listings?' + Date.now(), { cache: 'no-store' })
-                    .then(res => res.json())
-                    .then(result => {
-                      const newCount = result.listings?.length || result.total_listings || 0
-                      console.log(`[Trulia] Successfully refreshed! Now showing ${newCount} listings from Supabase`)
-                      setNotification({ message: `✅ Scraper completed! Showing ${newCount} listings from Supabase.`, type: 'success' })
-                      setTimeout(() => setNotification(null), 5000)
-                    })
-                    .catch(err => {
-                      console.error('[Trulia] Error getting count after refresh:', err)
-                      setNotification({ message: '✅ Scraper completed! Listings refreshed from Supabase.', type: 'success' })
-                      setTimeout(() => setNotification(null), 5000)
-                    })
+                console.log(`[Trulia] Auto-refreshing after scraper stop (attempt ${currentRetry + 1}/${maxRetries})...`)
+                await fetchListingsRef.current(true)
+                
+                // Verify count by fetching fresh data
+                setTimeout(async () => {
+                  try {
+                    const res = await fetch('/api/trulia-listings?' + Date.now(), { cache: 'no-store' })
+                    const result = await res.json()
+                    const newCount = result.listings?.length || result.total_listings || 0
+                    console.log(`[Trulia] Successfully refreshed! Now showing ${newCount} listings`)
+                    setNotification({ message: `✅ Scraper completed! Showing ${newCount} listings.`, type: 'success' })
+                    setTimeout(() => setNotification(null), 5000)
+                  } catch (err) {
+                    console.error('[Trulia] Error verifying count:', err)
+                    setNotification({ message: '✅ Scraper completed! Listings refreshed.', type: 'success' })
+                    setTimeout(() => setNotification(null), 5000)
+                  }
                 }, 1000)
               } catch (err) {
-                console.error(`[Trulia] Error refreshing after scraper stop (attempt ${currentRetry + 1}):`, err)
-                const nextRetry = currentRetry + 1
-                if (nextRetry < maxRetries) {
-                  // Retry with increasing delay
-                  setTimeout(() => refreshAfterStop(nextRetry), 2000 * nextRetry)
+                console.error(`[Trulia] Refresh failed (attempt ${currentRetry + 1}):`, err)
+                if (currentRetry < maxRetries - 1) {
+                  setTimeout(() => refreshAfterStop(currentRetry + 1, maxRetries), 2000 * (currentRetry + 1))
                 } else {
-                  setNotification({ message: '⚠️ Scraper stopped but failed to refresh. Click Refresh button.', type: 'info' })
+                  setNotification({ message: '⚠️ Failed to refresh. Click Refresh button.', type: 'info' })
                   setTimeout(() => setNotification(null), 5000)
                 }
               }
             }
             
-            // Start with 5 second delay, then retry if needed
-            setTimeout(refreshAfterStop, 5000)
+            setTimeout(() => refreshAfterStop(), 5000)
+          } else if (isRunning) {
+            wasRunningRef.current = true
           }
-          
-          // Update previous state for next check
-          previousRunningState = isRunning
         }
       } catch (err) {
         console.error('[Trulia] Error checking scraper status:', err)
       }
     }
     
-    // Check status every 5 seconds - run continuously, not just when running
-    statusCheckInterval = setInterval(checkScraperStatus, 5000)
-    // Also check immediately
+    // Initialize ref from current state
+    wasRunningRef.current = isScraperRunning
+    
+    // Run status check continuously every 3 seconds
+    statusCheckInterval = setInterval(checkScraperStatus, 3000)
     checkScraperStatus()
 
     // Cleanup
     return () => {
+      console.log('[Trulia] Cleaning up webhook subscription and status check')
       supabase.removeChannel(channel)
       if (statusCheckInterval) {
         clearInterval(statusCheckInterval)
       }
     }
-  }, [isScraperRunning])
+  }, []) // Empty dependencies - only run once on mount
 
   const handleLogout = async () => {
     try {
@@ -465,7 +480,7 @@ function TruliaListingsPageContent() {
     }
   }, [data])
 
-  const fetchListings = async (forceRefresh = false) => {
+  const fetchListings = useCallback(async (forceRefresh = false) => {
     try {
       // Don't set loading to true if we already have data (prevents clearing during navigation)
       // UNLESS forceRefresh is true (for auto-refresh after scraper completes)
@@ -540,7 +555,12 @@ function TruliaListingsPageContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [data]) // Include data in dependencies since we check it
+
+  // Store ref to fetchListings
+  useEffect(() => {
+    fetchListingsRef.current = fetchListings
+  }, [fetchListings])
 
   const formatPrice = (price: string | number | null | undefined): string => {
     // Handle null, undefined, empty string, or string 'null'/'None'

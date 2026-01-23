@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Image from 'next/image'
 import AuthGuard from '@/app/components/AuthGuard'
@@ -56,6 +56,8 @@ function ApartmentsPageContent() {
   const [isSyncing, setIsSyncing] = useState(false) // Track if sync is in progress
   const [isScraperRunning, setIsScraperRunning] = useState(false) // Track scraper status
   const [notification, setNotification] = useState<{ message: string; type: 'success' | 'info' } | null>(null) // Notification state
+  const wasRunningRef = useRef(false) // Track previous running state to detect changes
+  const fetchListingsRef = useRef<((forceRefresh?: boolean) => Promise<void>) | null>(null) // Ref to fetchListings to avoid stale closures
 
   const handleLogout = async () => {
     try {
@@ -193,74 +195,138 @@ function ApartmentsPageContent() {
         },
         (payload) => {
           console.log('[Apartments] Webhook: Database change detected:', payload.eventType)
-          // When data changes in Supabase, automatically refresh listings
-          setTimeout(() => {
-            fetchListings(true)
-            setNotification({ message: '🔄 Listings updated from Supabase via webhook!', type: 'info' })
-            setTimeout(() => setNotification(null), 3000)
-          }, 500)
-        }
-      )
-      .subscribe()
-
-    // Also check scraper status periodically (but less frequently - only when running)
-    let statusCheckInterval: NodeJS.Timeout | null = null
-    if (isScraperRunning) {
-      const checkScraperStatus = async () => {
-        try {
-          const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
-          if (res.ok) {
-            const statusData = await res.json()
-            const apartmentsStatus = statusData.apartments
-            const isRunning = apartmentsStatus?.status === 'running'
-            
-            if (!isRunning && isScraperRunning) {
-              // Scraper just stopped - fetch latest data from Supabase immediately
-              console.log('[Apartments] Scraper stopped! Fetching latest listings from Supabase...')
-              setIsScraperRunning(false)
+          
+          // Use ref to avoid stale closure
+          const refreshWithRetry = async (retryCount = 0, maxRetries = 3) => {
+            try {
+              if (!fetchListingsRef.current) return
               
-              // Clear interval immediately to prevent multiple triggers
-              if (statusCheckInterval) {
-                clearInterval(statusCheckInterval)
-                statusCheckInterval = null
-              }
+              console.log(`[Apartments] Webhook: Refreshing listings (attempt ${retryCount + 1}/${maxRetries})...`)
+              await fetchListingsRef.current(true)
               
-              // Wait 2 seconds for Supabase to finish saving all data, then fetch
+              // Fetch fresh count from API (don't use stale data state)
               setTimeout(async () => {
                 try {
-                  console.log('[Apartments] Auto-refreshing listings after scraper stop...')
-                  await fetchListings(true) // Force refresh to get all latest listings from Supabase
-                  
-                  // Show success notification (count will be updated via setData in fetchListings)
-                  setNotification({ message: '✅ Scraper completed! Listings refreshed from Supabase.', type: 'success' })
+                  const res = await fetch('/api/apartments-listings?' + Date.now(), { cache: 'no-store' })
+                  const result = await res.json()
+                  const newCount = result.listings?.length || result.total_listings || 0
+                  console.log(`[Apartments] Webhook refresh complete: ${newCount} listings`)
+                  setNotification({ message: `🔄 Listings updated! Now showing ${newCount} listings.`, type: 'info' })
                   setTimeout(() => setNotification(null), 5000)
                 } catch (err) {
-                  console.error('[Apartments] Error refreshing after scraper stop:', err)
-                  setNotification({ message: '⚠️ Scraper stopped but failed to refresh. Click Refresh button.', type: 'info' })
+                  console.error('[Apartments] Error getting count after webhook:', err)
+                  setNotification({ message: '🔄 Listings updated from Supabase!', type: 'info' })
                   setTimeout(() => setNotification(null), 5000)
                 }
-              }, 2000) // 2 second delay to ensure Supabase has saved all data
+              }, 500)
+            } catch (err) {
+              console.error(`[Apartments] Webhook refresh failed (attempt ${retryCount + 1}):`, err)
+              if (retryCount < maxRetries - 1) {
+                setTimeout(() => refreshWithRetry(retryCount + 1, maxRetries), 2000)
+              } else {
+                setNotification({ message: '⚠️ Failed to refresh. Click Refresh button.', type: 'info' })
+                setTimeout(() => setNotification(null), 5000)
+              }
             }
           }
-        } catch (err) {
-          console.error('[Apartments] Error checking scraper status:', err)
+          
+          // Wait 2 seconds to ensure all changes are committed
+          setTimeout(() => refreshWithRetry(), 2000)
         }
+      )
+      .subscribe((status) => {
+        console.log('[Apartments] Webhook subscription status:', status)
+        if (status === 'SUBSCRIBED') {
+          console.log('[Apartments] ✅ Successfully subscribed to real-time updates')
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('[Apartments] ❌ Webhook subscription error')
+        }
+      })
+
+    // Check scraper status CONTINUOUSLY (not just when running)
+    let statusCheckInterval: NodeJS.Timeout | null = null
+    
+    const checkScraperStatus = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/status-all`, { cache: 'no-store' })
+        if (res.ok) {
+          const statusData = await res.json()
+          const scraperStatus = statusData.apartments
+          const isRunning = scraperStatus?.status === 'running'
+          
+          // Update state if changed
+          setIsScraperRunning(prev => {
+            if (prev !== isRunning) {
+              return isRunning
+            }
+            return prev
+          })
+          
+          // If scraper just stopped (was running, now not running)
+          if (!isRunning && wasRunningRef.current) {
+            console.log('[Apartments] Scraper stopped! Fetching latest listings...')
+            wasRunningRef.current = false
+            
+            // Wait 5 seconds for Supabase to finish saving, then refresh with retry
+            const refreshAfterStop = async (currentRetry = 0, maxRetries = 5) => {
+              try {
+                if (!fetchListingsRef.current) return
+                
+                console.log(`[Apartments] Auto-refreshing after scraper stop (attempt ${currentRetry + 1}/${maxRetries})...`)
+                await fetchListingsRef.current(true)
+                
+                // Verify count by fetching fresh data
+                setTimeout(async () => {
+                  try {
+                    const res = await fetch('/api/apartments-listings?' + Date.now(), { cache: 'no-store' })
+                    const result = await res.json()
+                    const newCount = result.listings?.length || result.total_listings || 0
+                    console.log(`[Apartments] Successfully refreshed! Now showing ${newCount} listings`)
+                    setNotification({ message: `✅ Scraper completed! Showing ${newCount} listings.`, type: 'success' })
+                    setTimeout(() => setNotification(null), 5000)
+                  } catch (err) {
+                    console.error('[Apartments] Error verifying count:', err)
+                    setNotification({ message: '✅ Scraper completed! Listings refreshed.', type: 'success' })
+                    setTimeout(() => setNotification(null), 5000)
+                  }
+                }, 1000)
+              } catch (err) {
+                console.error(`[Apartments] Refresh failed (attempt ${currentRetry + 1}):`, err)
+                if (currentRetry < maxRetries - 1) {
+                  setTimeout(() => refreshAfterStop(currentRetry + 1, maxRetries), 2000 * (currentRetry + 1))
+                } else {
+                  setNotification({ message: '⚠️ Failed to refresh. Click Refresh button.', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
+                }
+              }
+            }
+            
+            setTimeout(() => refreshAfterStop(), 5000)
+          } else if (isRunning) {
+            wasRunningRef.current = true
+          }
+        }
+      } catch (err) {
+        console.error('[Apartments] Error checking scraper status:', err)
       }
-      
-      // Check status every 5 seconds (less frequent than before)
-      statusCheckInterval = setInterval(checkScraperStatus, 5000)
-      // Also check immediately
-      checkScraperStatus()
     }
+    
+    // Initialize ref from current state
+    wasRunningRef.current = isScraperRunning
+    
+    // Run status check continuously every 3 seconds
+    statusCheckInterval = setInterval(checkScraperStatus, 3000)
+    checkScraperStatus()
 
     // Cleanup
     return () => {
+      console.log('[Apartments] Cleaning up webhook subscription and status check')
       supabase.removeChannel(channel)
       if (statusCheckInterval) {
         clearInterval(statusCheckInterval)
       }
     }
-  }, [isScraperRunning])
+  }, []) // Empty dependencies - only run once on mount
 
   // Poll for listings while syncing - updates UI in real-time
   const pollForListings = (interval: number = 3000, maxAttempts: number = 120): ReturnType<typeof setInterval> => {
@@ -317,7 +383,7 @@ function ApartmentsPageContent() {
     await fetchListings(true)
   }
 
-  const fetchListings = async (forceRefresh: boolean = false) => {
+  const fetchListings = useCallback(async (forceRefresh: boolean = false) => {
     try {
       const hasExistingData = data && data.listings && data.listings.length > 0
 
@@ -388,7 +454,12 @@ function ApartmentsPageContent() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [data]) // Include data in dependencies since we check it
+
+  // Store ref to fetchListings
+  useEffect(() => {
+    fetchListingsRef.current = fetchListings
+  }, [fetchListings])
 
   const formatPrice = (price: string | number | null | undefined): string => {
     if (price === null || price === undefined || price === '' || price === 'null' || price === 'None') return 'Price on Request'
