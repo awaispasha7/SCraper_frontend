@@ -125,9 +125,31 @@ function TruliaListingsPageContent() {
             const isRunning = truliaStatus?.status === 'running'
             
             if (!isRunning && isScraperRunning) {
+              // Scraper just stopped - fetch latest data from Supabase immediately
+              console.log('[Trulia] Scraper stopped! Fetching latest listings from Supabase...')
               setIsScraperRunning(false)
-              setNotification({ message: '✅ Scraper completed! Listings updated via webhook.', type: 'success' })
-              setTimeout(() => setNotification(null), 5000)
+              
+              // Clear interval immediately to prevent multiple triggers
+              if (statusCheckInterval) {
+                clearInterval(statusCheckInterval)
+                statusCheckInterval = null
+              }
+              
+              // Wait 2 seconds for Supabase to finish saving all data, then fetch
+              setTimeout(async () => {
+                try {
+                  console.log('[Trulia] Auto-refreshing listings after scraper stop...')
+                  await fetchListings(true) // Force refresh to get all latest listings from Supabase
+                  
+                  // Show success notification (count will be updated via setData in fetchListings)
+                  setNotification({ message: '✅ Scraper completed! Listings refreshed from Supabase.', type: 'success' })
+                  setTimeout(() => setNotification(null), 5000)
+                } catch (err) {
+                  console.error('[Trulia] Error refreshing after scraper stop:', err)
+                  setNotification({ message: '⚠️ Scraper stopped but failed to refresh. Click Refresh button.', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
+                }
+              }, 2000) // 2 second delay to ensure Supabase has saved all data
             }
           }
         } catch (err) {
@@ -137,6 +159,8 @@ function TruliaListingsPageContent() {
       
       // Check status every 5 seconds (less frequent than before)
       statusCheckInterval = setInterval(checkScraperStatus, 5000)
+      // Also check immediately
+      checkScraperStatus()
     }
 
     // Cleanup
@@ -451,13 +475,17 @@ function TruliaListingsPageContent() {
       console.log(`[Trulia] Normalized result: ${normalizedResult.listings.length} listings`)
 
       setData(normalizedResult)
+      setError(null)
+      
+      // Log success with count
+      console.log(`[Trulia] ✅ Successfully loaded ${normalizedResult.listings.length} listings from Supabase`)
     } catch (err: any) {
       if (err.name === 'AbortError') {
         setError('Request timed out. Please try again.')
       } else {
         setError(err.message || 'Failed to load listings')
       }
-      console.error('Error fetching Trulia listings:', err)
+      console.error('[Trulia] ❌ Error fetching listings:', err)
     } finally {
       setLoading(false)
     }

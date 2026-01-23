@@ -120,9 +120,31 @@ function ZillowFRBOPageContent() {
             const isRunning = zillowFrboStatus?.status === 'running'
             
             if (!isRunning && isScraperRunning) {
+              // Scraper just stopped - fetch latest data from Supabase immediately
+              console.log('[Zillow FRBO] Scraper stopped! Fetching latest listings from Supabase...')
               setIsScraperRunning(false)
-              setNotification({ message: '✅ Scraper completed! Listings updated via webhook.', type: 'success' })
-              setTimeout(() => setNotification(null), 5000)
+              
+              // Clear interval immediately to prevent multiple triggers
+              if (statusCheckInterval) {
+                clearInterval(statusCheckInterval)
+                statusCheckInterval = null
+              }
+              
+              // Wait 2 seconds for Supabase to finish saving all data, then fetch
+              setTimeout(async () => {
+                try {
+                  console.log('[Zillow FRBO] Auto-refreshing listings after scraper stop...')
+                  await fetchListings(true) // Force refresh to get all latest listings from Supabase
+                  
+                  // Show success notification (count will be updated via setData in fetchListings)
+                  setNotification({ message: '✅ Scraper completed! Listings refreshed from Supabase.', type: 'success' })
+                  setTimeout(() => setNotification(null), 5000)
+                } catch (err) {
+                  console.error('[Zillow FRBO] Error refreshing after scraper stop:', err)
+                  setNotification({ message: '⚠️ Scraper stopped but failed to refresh. Click Refresh button.', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
+                }
+              }, 2000) // 2 second delay to ensure Supabase has saved all data
             }
           }
         } catch (err) {
@@ -132,6 +154,8 @@ function ZillowFRBOPageContent() {
       
       // Check status every 5 seconds (less frequent than before)
       statusCheckInterval = setInterval(checkScraperStatus, 5000)
+      // Also check immediately
+      checkScraperStatus()
     }
 
     // Cleanup
