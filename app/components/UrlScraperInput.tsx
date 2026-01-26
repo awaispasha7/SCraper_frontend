@@ -739,7 +739,12 @@ export default function UrlScraperInput({
         // Check if scraper is already running
         if (data.error && data.error.toLowerCase().includes('already running')) {
           setScrapeStatus({ status: 'running', message: data.error || 'Scraper is already running' })
-          setValidationError(data.error || 'Scraper is already running')
+          // Treat "already running" as info (not an error) to avoid duplicate banners.
+          setValidationError(null)
+          // Notify parent so it can start its polling / UI updates
+          if (onSuccess && (scrapeStatus.platform || expectedPlatform)) {
+            onSuccess(scrapeStatus.platform || expectedPlatform || 'unknown', trimmedUrl)
+          }
           // Don't reset status - keep it as 'running' so button stays disabled
           return
         } else {
