@@ -378,61 +378,55 @@ function ApartmentsPageContent() {
     return pollInterval
   }
 
-  // Handle manual refresh - triggers scraper if no data, otherwise just refreshes
+  // Handle manual refresh (just fetches already-scraped data)
   const handleRefresh = async () => {
-    const hasNoData = !data || !data.listings || data.listings.length === 0
-    
-    if (hasNoData) {
-      // No data exists - trigger the scraper
-      try {
-        setLoading(true)
-        setIsSyncing(true)
-        setError(null)
-        setSyncProgress('🚀 Starting apartments scraper...')
-        
-        // Trigger the scraper
-        const response = await fetch('/api/apartments-sync', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        })
-        
-        const result = await response.json()
-        
-        if (!response.ok) {
-          throw new Error(result.error || result.details || 'Failed to start scraper')
-        }
-        
-        // Scraper started successfully
-        setIsScraperRunning(true)
-        setSyncProgress('✅ Scraper started! Fetching listings...')
-        setNotification({ 
-          message: '🔄 Scraper started! Listings will auto-refresh when complete.', 
-          type: 'info' 
-        })
-        setTimeout(() => setNotification(null), 5000)
-        
-        // Start polling for updates
-        const pollInterval = pollForListings(3000, 120)
-        setTimeout(() => {
-          clearInterval(pollInterval)
-          setIsSyncing(false)
-          setSyncProgress('')
-        }, 360000) // 6 minutes max
-        
-        // Also fetch listings immediately to check for any existing data
-        await fetchListings(true)
-      } catch (err: any) {
-        console.error('Error triggering apartments scraper:', err)
-        setError(err.message || 'Failed to start scraper')
-        setIsSyncing(false)
-        setSyncProgress('')
-        setLoading(false)
-      }
-    } else {
-      // Data exists - just refresh
+    const hasExistingData = Boolean(data?.listings && data.listings.length > 0)
+
+    // If we already have data, just refetch from Supabase
+    if (hasExistingData) {
       await fetchListings(true)
+      setLastRefreshTime(new Date())
+      return
+    }
+
+    // If no data yet, trigger the Apartments sync (starts scraper via backend)
+    setIsSyncing(true)
+    setError(null)
+    setNotification({ message: '🔄 Starting Apartments scraper... Listings will appear shortly.', type: 'info' })
+    setTimeout(() => setNotification(null), 5000)
+
+    try {
+      const res = await fetch(`/api/apartments-sync?t=${Date.now()}&r=${Math.random()}`, {
+        method: 'POST',
+        cache: 'no-store',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Pragma': 'no-cache',
+          'Expires': '0'
+        }
+      })
+
+      const result = await res.json().catch(() => ({}))
+
+      if (!res.ok || result?.success === false) {
+        throw new Error(result?.details || result?.error || 'Failed to start Apartments scraper')
+      }
+
+      setLastRefreshTime(new Date())
+      setNotification({ message: '✅ Scraper started! This page will auto-refresh as data saves to Supabase.', type: 'info' })
+      setTimeout(() => setNotification(null), 5000)
+
+      // Poll Supabase periodically while the scraper runs (keeps UI updating even if realtime is delayed)
+      const pollInterval = pollForListings(3000, 120)
+      setTimeout(() => {
+        clearInterval(pollInterval)
+        setIsSyncing(false)
+      }, 360000) // 6 minutes
+    } catch (err: any) {
+      console.error('[Apartments] Failed to start apartments sync:', err)
+      setError(err?.message || 'Failed to start Apartments scraper. Check backend URL and logs.')
+      setIsSyncing(false)
     }
   }
 
@@ -674,7 +668,7 @@ function ApartmentsPageContent() {
           <div className="text-gray-400 text-8xl mb-6">📭</div>
           <h2 className="text-3xl font-bold text-gray-900 mb-4">No Listings Available</h2>
           <p className="text-gray-600 text-lg mb-8">
-            The database is currently empty. Click the button below to sync data from the website.
+            The database is currently empty. Start the scraper to sync listings from Apartments.com.
           </p>
           <button
             onClick={handleRefresh}
@@ -684,18 +678,51 @@ function ApartmentsPageContent() {
             {loading ? (
               <>
                 <span className="animate-spin inline-block mr-2">🔄</span>
-                <span>Refreshing Data...</span>
+                <span>Starting...</span>
               </>
             ) : (
               <>
                 <span className="mr-2">🔄</span>
-                <span>Refresh Data</span>
+                <span>Sync Data</span>
               </>
             )}
           </button>
           <p className="text-gray-500 text-sm mt-4">
-            This will run the scraper and populate the database with current listings.
+            This triggers the backend scraper and will populate Supabase as it runs.
           </p>
+
+          {/* Allow URL-based scraping even when empty */}
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <div className="bg-cyan-50 rounded-xl p-4 border border-cyan-200 text-left">
+              <h3 className="text-lg font-semibold text-cyan-900 mb-2">Scrape from URL</h3>
+              <p className="text-sm text-cyan-700 mb-4">Enter an Apartments.com URL to scrape a specific location or listing</p>
+              <UrlScraperInput
+                defaultUrl={getDefaultUrlForPlatform('apartments.com')}
+                expectedPlatform="apartments.com"
+                showDefaultValue={true}
+                placeholder="https://www.apartments.com/chicago-il/for-rent-by-owner/"
+                onSuccess={(platform, url) => {
+                  // Start polling for scraper completion
+                  setIsScraperRunning(true)
+                  setNotification({ message: '🔄 Scraper started! Listings will auto-refresh when complete.', type: 'info' })
+                  setTimeout(() => setNotification(null), 5000)
+                  setSyncProgress(`✅ Scraper started for ${platform}. Scraping ${url}...`)
+                  setIsSyncing(true)
+                  // Start polling for updates
+                  const pollInterval = pollForListings(3000, 120)
+                  setTimeout(() => {
+                    clearInterval(pollInterval)
+                    setIsSyncing(false)
+                    setSyncProgress('')
+                  }, 360000) // 6 minutes
+                }}
+                onError={(error) => {
+                  setSyncProgress(`❌ ${error}`)
+                  setTimeout(() => setSyncProgress(''), 5000)
+                }}
+              />
+            </div>
+          </div>
         </div>
       </div>
     )
