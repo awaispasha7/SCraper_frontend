@@ -378,9 +378,62 @@ function ApartmentsPageContent() {
     return pollInterval
   }
 
-  // Handle manual refresh (just fetches already-scraped data)
+  // Handle manual refresh - triggers scraper if no data, otherwise just refreshes
   const handleRefresh = async () => {
-    await fetchListings(true)
+    const hasNoData = !data || !data.listings || data.listings.length === 0
+    
+    if (hasNoData) {
+      // No data exists - trigger the scraper
+      try {
+        setLoading(true)
+        setIsSyncing(true)
+        setError(null)
+        setSyncProgress('🚀 Starting apartments scraper...')
+        
+        // Trigger the scraper
+        const response = await fetch('/api/apartments-sync', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        const result = await response.json()
+        
+        if (!response.ok) {
+          throw new Error(result.error || result.details || 'Failed to start scraper')
+        }
+        
+        // Scraper started successfully
+        setIsScraperRunning(true)
+        setSyncProgress('✅ Scraper started! Fetching listings...')
+        setNotification({ 
+          message: '🔄 Scraper started! Listings will auto-refresh when complete.', 
+          type: 'info' 
+        })
+        setTimeout(() => setNotification(null), 5000)
+        
+        // Start polling for updates
+        const pollInterval = pollForListings(3000, 120)
+        setTimeout(() => {
+          clearInterval(pollInterval)
+          setIsSyncing(false)
+          setSyncProgress('')
+        }, 360000) // 6 minutes max
+        
+        // Also fetch listings immediately to check for any existing data
+        await fetchListings(true)
+      } catch (err: any) {
+        console.error('Error triggering apartments scraper:', err)
+        setError(err.message || 'Failed to start scraper')
+        setIsSyncing(false)
+        setSyncProgress('')
+        setLoading(false)
+      }
+    } else {
+      // Data exists - just refresh
+      await fetchListings(true)
+    }
   }
 
   const fetchListings = useCallback(async (forceRefresh: boolean = false) => {
