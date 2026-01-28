@@ -249,8 +249,8 @@ export async function GET() {
         console.error('❌ Supabase error:', JSON.stringify(supabaseError, null, 2))
         console.error('Error message:', supabaseError.message)
       }
-    } else {
-      console.warn('⚠️ Supabase client not initialized')
+    } catch (error: any) {
+      console.error('❌ Outer error:', error)
     }
 
     // Return empty result if no data found
